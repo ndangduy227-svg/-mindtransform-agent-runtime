@@ -7,6 +7,8 @@ export function GET() {
     firstProof: "website_mindai_to_proposal_seed",
     modules: [
       "config_studio",
+      "llm_model_router",
+      "agent_tooling",
       "agent_registry",
       "workflow_registry",
       "session_inbox",

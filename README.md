@@ -17,6 +17,8 @@ The app currently includes:
 - Cost and Eval console
 - API health endpoint
 - Runtime summary endpoint
+- LLM provider status and test endpoints
+- Supabase/database status and migration endpoints
 
 ## Current Status
 
@@ -55,16 +57,72 @@ Runtime summary:
 http://localhost:3000/api/runtime/summary
 ```
 
+LLM provider status:
+
+```text
+http://localhost:3000/api/llm/providers
+```
+
+Test one provider from the server:
+
+```bash
+curl -X POST http://localhost:3000/api/llm/test \
+  -H "Content-Type: application/json" \
+  -d "{\"provider\":\"groq\",\"dryRun\":true}"
+```
+
+Database setup status:
+
+```text
+http://localhost:3000/api/database/status
+```
+
+Migration SQL:
+
+```text
+http://localhost:3000/api/database/migration
+```
+
 ## Supabase
 
 Supabase is **not required** for this first UI deploy.
 
-When moving to v1 persistence, create a separate Supabase project for the runtime and set:
+For MVP, create a separate Supabase project manually, run the SQL migration in `supabase/migrations/0001_agent_runtime_schema.sql`, then set:
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=
+```
+
+The app can check configuration automatically. It cannot create a Supabase project unless a Supabase Management token/project workflow is added:
+
+```text
+SUPABASE_ACCESS_TOKEN=
+SUPABASE_PROJECT_REF=
+```
+
+## LLM Providers
+
+Provider keys stay server-side in `.env.local` or Vercel env:
+
+```text
+GROQ_API_KEY=
+GEMINI_API_KEY=
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+```
+
+Supported route styles:
+
+```text
+OpenAI: Responses API
+Groq: OpenAI-compatible chat completions
+Gemini: generateContent
+Claude: Anthropic Messages API
+9Router/OpenRouter: OpenAI-compatible chat completions
 ```
 
 Planned table groups:

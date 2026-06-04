@@ -2,7 +2,7 @@
 
 import { type ReactNode, useMemo, useState } from "react";
 
-type View = "config" | "agents" | "workflows" | "sessions" | "memory" | "database" | "costs";
+type View = "config" | "models" | "tools" | "agents" | "workflows" | "sessions" | "memory" | "database" | "costs";
 
 type AgentStatus = "production" | "draft" | "review";
 
@@ -58,8 +58,32 @@ type Session = {
   messages: [role: "User" | "Mind AI", text: string][];
 };
 
+type ModelProvider = {
+  id: string;
+  name: string;
+  envKey: string;
+  endpoint: string;
+  apiStyle: string;
+  defaultModel: string;
+  role: string;
+  priority: number;
+  fallback: string;
+  docs: string;
+};
+
+type AgentComponent = {
+  kind: "Skill" | "Child skill" | "Script" | "MCP" | "CLI";
+  name: string;
+  ownerAgent: string;
+  purpose: string;
+  configKey: string;
+  permission: "Allowed" | "Approval required" | "Blocked by default";
+};
+
 const navItems: { id: View; label: string; hint: string }[] = [
   { id: "config", label: "Config", hint: "Define runtime versions" },
+  { id: "models", label: "Models", hint: "LLM router and keys" },
+  { id: "tools", label: "Tools", hint: "Skills, scripts, MCP, CLI" },
   { id: "agents", label: "Agents", hint: "Registry and contracts" },
   { id: "workflows", label: "Workflows", hint: "Run maps and gates" },
   { id: "sessions", label: "Sessions", hint: "Website intake inbox" },
@@ -71,7 +95,15 @@ const navItems: { id: View; label: string; hint: string }[] = [
 const viewCopy: Record<View, { title: string; subtitle: string }> = {
   config: {
     title: "Config Studio",
-    subtitle: "Configure agent, workflow, and memory versions before production publish.",
+    subtitle: "Create an agent version with model route, skills, scripts, MCP, CLI, database writes, and publish gates.",
+  },
+  models: {
+    title: "LLM Model Router",
+    subtitle: "Configure provider priority, API env keys, fallback order, and test calls from server routes.",
+  },
+  tools: {
+    title: "Agent Tooling",
+    subtitle: "Attach skills, child skills, scripts, MCP servers, and CLI capabilities to each agent.",
   },
   agents: {
     title: "Agent Registry",
@@ -182,7 +214,142 @@ const agents: Agent[] = [
   },
 ];
 
+const modelProviders: ModelProvider[] = [
+  {
+    id: "groq",
+    name: "Groq",
+    envKey: "GROQ_API_KEY",
+    endpoint: "https://api.groq.com/openai/v1/chat/completions",
+    apiStyle: "OpenAI-compatible chat completions",
+    defaultModel: "llama-3.3-70b-versatile",
+    role: "Fast intake, cheap first-pass summarization",
+    priority: 1,
+    fallback: "openrouter",
+    docs: "https://console.groq.com/docs/api-reference",
+  },
+  {
+    id: "gemini",
+    name: "Gemini",
+    envKey: "GEMINI_API_KEY",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+    apiStyle: "Google generateContent",
+    defaultModel: "gemini-2.5-flash",
+    role: "Multimodal and Google ecosystem tasks",
+    priority: 2,
+    fallback: "groq",
+    docs: "https://ai.google.dev/gemini-api/docs/text-generation",
+  },
+  {
+    id: "anthropic",
+    name: "Claude",
+    envKey: "ANTHROPIC_API_KEY",
+    endpoint: "https://api.anthropic.com/v1/messages",
+    apiStyle: "Anthropic Messages API",
+    defaultModel: "claude-sonnet-4-5",
+    role: "Reasoning, planning, long-form handoff quality",
+    priority: 3,
+    fallback: "openai",
+    docs: "https://docs.claude.com/en/api/messages",
+  },
+  {
+    id: "openai",
+    name: "ChatGPT / OpenAI",
+    envKey: "OPENAI_API_KEY",
+    endpoint: "https://api.openai.com/v1/responses",
+    apiStyle: "OpenAI Responses API",
+    defaultModel: "gpt-4.1-mini",
+    role: "General agent reasoning and structured outputs",
+    priority: 4,
+    fallback: "openrouter",
+    docs: "https://platform.openai.com/docs/api-reference/responses",
+  },
+  {
+    id: "openrouter",
+    name: "9Router / OpenRouter",
+    envKey: "OPENROUTER_API_KEY",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    apiStyle: "OpenAI-compatible router",
+    defaultModel: "openai/gpt-4.1-mini",
+    role: "Provider fallback and model marketplace routing",
+    priority: 5,
+    fallback: "groq",
+    docs: "https://openrouter.ai/docs/api-reference/chat-completion",
+  },
+];
+
+const agentComponents: AgentComponent[] = [
+  {
+    kind: "Skill",
+    name: "mind-consulting-discovery",
+    ownerAgent: "Mind AI Consultant",
+    purpose: "Ask discovery questions, extract pain map, and decide first workflow.",
+    configKey: "skills.mind_consulting_discovery",
+    permission: "Allowed",
+  },
+  {
+    kind: "Child skill",
+    name: "lead-qualification-scorecard",
+    ownerAgent: "Mind AI Consultant",
+    purpose: "Score fit, urgency, business size, offer match, and next action.",
+    configKey: "child_skills.lead_qualification_scorecard",
+    permission: "Allowed",
+  },
+  {
+    kind: "Script",
+    name: "proposal_seed_builder.ts",
+    ownerAgent: "Planner Manager",
+    purpose: "Convert diagnosis and approved scope into structured proposal seed JSON.",
+    configKey: "scripts.proposal_seed_builder",
+    permission: "Approval required",
+  },
+  {
+    kind: "MCP",
+    name: "lark-base-mcp",
+    ownerAgent: "Lark Template Builder",
+    purpose: "Read/create Lark Base structures after founder approval.",
+    configKey: "mcp.lark_base",
+    permission: "Approval required",
+  },
+  {
+    kind: "CLI",
+    name: "lark-cli",
+    ownerAgent: "Lark Template Builder",
+    purpose: "Mechanical Lark setup, screenshots, and build artifact operations.",
+    configKey: "cli.lark_cli",
+    permission: "Approval required",
+  },
+  {
+    kind: "MCP",
+    name: "github",
+    ownerAgent: "Orchestrator Chief Of Staff",
+    purpose: "Inspect repo state and verify deployment/source evidence.",
+    configKey: "mcp.github",
+    permission: "Allowed",
+  },
+  {
+    kind: "CLI",
+    name: "vercel-cli",
+    ownerAgent: "Orchestrator Chief Of Staff",
+    purpose: "Deploy only after source build, owner approval, and env checks pass.",
+    configKey: "cli.vercel",
+    permission: "Approval required",
+  },
+];
+
 const configTargets: ConfigTarget[] = [
+  {
+    id: "new-agent-draft",
+    type: "Agent config",
+    title: "New Agent Draft",
+    summary: "Create a new agent by choosing role, model route, skills, scripts, MCP, CLI, memory, and database writes.",
+    version: "v0.1 draft",
+    gate: "Needs owner, model route, test case",
+    risk: "Medium",
+    record: "agent_version",
+    slug: "new-agent-draft",
+    primaryOutput: "agent_version + tool_permissions + eval_case",
+    tables: ["agents", "agent_versions", "agent_skills", "agent_tool_permissions", "model_routes"],
+  },
   {
     id: "agent-consultant",
     type: "Agent config",
@@ -260,6 +427,44 @@ const configSteps: ConfigStep[] = [
       ["approval_policy", "Required before risky output"],
     ],
     writes: ["policy tables", "protected_facts"],
+  },
+  {
+    key: "model_router",
+    title: "Model Router",
+    purpose: "Choose which LLM providers the agent can use, fallback order, cost guardrail, and test endpoint.",
+    fields: [
+      ["Primary provider", "Groq for fast intake or Claude/OpenAI for deeper reasoning"],
+      ["Fallback route", "Gemini, OpenAI, Claude, or 9Router/OpenRouter"],
+      ["Server route", "POST /api/llm/test"],
+      ["Cost policy", "Per-agent max cost and auto-stop on low confidence"],
+    ],
+    checks: ["Provider env key exists", "Fallback provider exists", "Model purpose matches agent job", "No API key stored in browser"],
+    contracts: [
+      ["model_route.primary", "Provider id and model id"],
+      ["model_route.fallbacks", "Ordered providers"],
+      ["model_route.test_endpoint", "/api/llm/test"],
+      ["model_route.cost_policy", "Per-run and per-lead budget"],
+    ],
+    writes: ["model_routes", "model_calls", "cost_events", "agent_versions"],
+  },
+  {
+    key: "agent_components",
+    title: "Skills & Tools",
+    purpose: "Attach skills, child skills, scripts, MCP servers, and CLI capabilities that belong to this agent.",
+    fields: [
+      ["Skills", "Reusable reasoning/workflow capabilities"],
+      ["Child skills", "Small scoring/parsing/formatting units under one agent"],
+      ["Scripts", "Deterministic code called by the runtime"],
+      ["MCP/CLI", "External tools with permission and approval gates"],
+    ],
+    checks: ["Every component has owner agent", "Permission is explicit", "Script/MCP/CLI side effects require approval", "No duplicate skill scope"],
+    contracts: [
+      ["agent_skills", "Skill and child skill list"],
+      ["agent_scripts", "Script id, input schema, output schema"],
+      ["agent_mcp_servers", "MCP server name and allowed methods"],
+      ["agent_cli_tools", "CLI command policy and approval requirement"],
+    ],
+    writes: ["agent_skills", "agent_scripts", "agent_mcp_servers", "agent_cli_tools", "approval_requests"],
   },
   {
     key: "inputs",
@@ -419,11 +624,11 @@ const sessions: Session[] = [
 
 const databaseGroups = [
   ["Identity", ["organizations", "contacts", "leads"]],
-  ["Agents", ["agents", "agent_versions", "agent_skills", "agent_tool_permissions"]],
+  ["Agents", ["agents", "agent_versions", "agent_skills", "agent_tool_permissions", "model_routes"]],
   ["Workflows", ["workflows", "workflow_versions", "workflow_steps", "workflow_runs", "workflow_run_events"]],
   ["Sessions", ["sessions", "session_messages", "handoffs", "lead_qualification"]],
   ["Memory", ["context_snapshots", "memory_items", "protected_facts"]],
-  ["Tools and Cost", ["tools", "tool_calls", "approval_requests", "model_calls", "cost_events", "eval_runs"]],
+  ["Tools and Cost", ["tools", "tool_calls", "agent_scripts", "agent_mcp_servers", "agent_cli_tools", "approval_requests", "model_calls", "cost_events", "eval_runs"]],
 ];
 
 const costRows = [
@@ -511,7 +716,16 @@ export default function Home() {
               <button className="rounded-lg border border-[#dbe2dc] bg-white px-3 py-2 text-sm font-medium">Sync</button>
               <button className="rounded-lg border border-[#dbe2dc] bg-white px-3 py-2 text-sm font-medium">Export</button>
               <button className="rounded-lg border border-[#dbe2dc] bg-white px-3 py-2 text-sm font-medium">3 approvals</button>
-              <button className="rounded-lg bg-[#17211b] px-3 py-2 text-sm font-medium text-white">New config</button>
+              <button
+                onClick={() => {
+                  setView("config");
+                  setSelectedTargetId("new-agent-draft");
+                  setSelectedStepIndex(0);
+                }}
+                className="rounded-lg bg-[#17211b] px-3 py-2 text-sm font-medium text-white"
+              >
+                New config
+              </button>
             </div>
           </header>
 
@@ -524,6 +738,8 @@ export default function Home() {
                 selectedTarget={selectedTarget}
                 selectedStep={selectedStep}
                 selectedStepIndex={selectedStepIndex}
+                modelProviders={modelProviders}
+                agentComponents={agentComponents}
                 configWrites={configWrites}
                 configPayload={configPayload}
                 onSelectTarget={(id) => {
@@ -535,6 +751,8 @@ export default function Home() {
                 onNext={() => setSelectedStepIndex((current) => Math.min(configSteps.length - 1, current + 1))}
               />
             )}
+            {view === "models" && <ModelsView providers={modelProviders} />}
+            {view === "tools" && <ToolsView components={agentComponents} />}
             {view === "agents" && (
               <AgentsView
                 agents={filteredAgents}
@@ -591,6 +809,8 @@ function ConfigView({
   selectedTarget,
   selectedStep,
   selectedStepIndex,
+  modelProviders,
+  agentComponents,
   configWrites,
   configPayload,
   onSelectTarget,
@@ -603,6 +823,8 @@ function ConfigView({
   selectedTarget: ConfigTarget;
   selectedStep: ConfigStep;
   selectedStepIndex: number;
+  modelProviders: ModelProvider[];
+  agentComponents: AgentComponent[];
   configWrites: string[];
   configPayload: unknown;
   onSelectTarget: (id: string) => void;
@@ -636,7 +858,7 @@ function ConfigView({
       </Panel>
 
       <Panel title={`Configure ${selectedTarget.title}`} subtitle={`${selectedTarget.summary} Output: ${selectedTarget.primaryOutput}.`}>
-        <div className="grid grid-cols-7 gap-2 max-[760px]:grid-cols-1">
+        <div className="grid grid-cols-[repeat(9,minmax(0,1fr))] gap-2 max-[980px]:grid-cols-3 max-[760px]:grid-cols-1">
           {steps.map((step, index) => (
             <button
               key={step.key}
@@ -658,6 +880,14 @@ function ConfigView({
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#667269]">{selectedStep.purpose}</p>
         </div>
+
+        {(selectedStep.key === "model_router" || selectedStep.key === "agent_components" || selectedTarget.id === "new-agent-draft") && (
+          <AgentAssemblyPanel
+            providers={modelProviders}
+            components={agentComponents}
+            activeStep={selectedStep.key}
+          />
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
           <ContractBlock title="Founder configures">
@@ -731,6 +961,162 @@ function ConfigView({
             {JSON.stringify(configPayload, null, 2)}
           </pre>
         </ContractBlock>
+      </Panel>
+    </div>
+  );
+}
+
+function AgentAssemblyPanel({
+  providers,
+  components,
+  activeStep,
+}: {
+  providers: ModelProvider[];
+  components: AgentComponent[];
+  activeStep: string;
+}) {
+  const visibleProviders = providers.slice(0, 3);
+  const visibleComponents = components.slice(0, 5);
+
+  return (
+    <div className="mt-4 grid grid-cols-[minmax(280px,0.8fr)_minmax(320px,1.2fr)] gap-3 max-[850px]:grid-cols-1">
+      <ContractBlock title="Agent model route">
+        <div className="grid gap-2">
+          {visibleProviders.map((provider) => (
+            <div
+              key={provider.id}
+              className={`rounded-lg border p-3 text-sm ${
+                activeStep === "model_router" ? "border-[#9ac9a8] bg-[#e3f3e9]" : "border-[#dbe2dc] bg-white"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold">{provider.name}</div>
+                  <div className="mt-1 text-xs text-[#667269]">{provider.defaultModel}</div>
+                </div>
+                <Badge tone={provider.priority === 1 ? "green" : "blue"}>P{provider.priority}</Badge>
+              </div>
+              <div className="mt-2 text-xs leading-5 text-[#667269]">
+                Env: <code>{provider.envKey}</code> | fallback: {provider.fallback}
+              </div>
+            </div>
+          ))}
+        </div>
+      </ContractBlock>
+      <ContractBlock title="Agent-owned skills/tools">
+        <div className="grid gap-2">
+          {visibleComponents.map((component) => (
+            <div
+              key={component.configKey}
+              className={`rounded-lg border p-3 text-sm ${
+                activeStep === "agent_components" ? "border-[#cbdcf0] bg-[#e6eef8]" : "border-[#dbe2dc] bg-white"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold">{component.name}</div>
+                  <div className="mt-1 text-xs text-[#667269]">{component.kind} | {component.ownerAgent}</div>
+                </div>
+                <Badge tone={component.permission === "Allowed" ? "green" : "amber"}>{component.permission}</Badge>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-[#667269]">{component.purpose}</p>
+            </div>
+          ))}
+        </div>
+      </ContractBlock>
+    </div>
+  );
+}
+
+function ModelsView({ providers }: { providers: ModelProvider[] }) {
+  return (
+    <div className="grid grid-cols-[minmax(420px,1fr)_minmax(320px,0.72fr)] gap-4 max-[1050px]:grid-cols-1">
+      <Panel title="Provider Router" subtitle="Server-side provider config. API keys live in Vercel env vars, never in the browser.">
+        <div className="grid gap-3">
+          {providers.map((provider) => (
+            <div key={provider.id} className="grid grid-cols-[minmax(160px,0.45fr)_minmax(0,1fr)_auto] gap-3 rounded-lg border border-[#dbe2dc] bg-[#fbfcfb] p-3 text-sm max-[760px]:grid-cols-1">
+              <div>
+                <div className="font-semibold">{provider.name}</div>
+                <div className="mt-1 text-xs text-[#667269]">Priority {provider.priority}</div>
+              </div>
+              <div>
+                <div className="text-[#667269]">{provider.role}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-[#dbe2dc] bg-white px-2 py-1 text-xs">{provider.apiStyle}</span>
+                  <span className="rounded-full border border-[#dbe2dc] bg-white px-2 py-1 text-xs">{provider.defaultModel}</span>
+                  <span className="rounded-full border border-[#dbe2dc] bg-white px-2 py-1 text-xs">{provider.envKey}</span>
+                </div>
+                <div className="mt-2 break-all text-xs text-[#667269]">{provider.endpoint}</div>
+              </div>
+              <Badge tone={provider.priority <= 2 ? "green" : provider.priority <= 4 ? "blue" : "violet"}>fallback {provider.fallback}</Badge>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Connection functions" subtitle="Implemented server routes for provider status and test calls.">
+        <ContractBlock title="Routes">
+          <ChipList items={["GET /api/llm/providers", "POST /api/llm/test", "GET /api/database/status", "GET /api/database/migration"]} />
+        </ContractBlock>
+        <ContractBlock title="Env keys" className="mt-3">
+          <ChipList items={["GROQ_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"]} />
+        </ContractBlock>
+        <ContractBlock title="Policy" className="mt-3">
+          <p className="text-sm leading-6 text-[#667269]">
+            UI can inspect whether a provider is configured, but only the server route can call the provider. Real calls require env keys in Vercel or local `.env.local`.
+          </p>
+        </ContractBlock>
+      </Panel>
+    </div>
+  );
+}
+
+function ToolsView({ components }: { components: AgentComponent[] }) {
+  return (
+    <div className="grid grid-cols-[minmax(420px,1fr)_minmax(320px,0.72fr)] gap-4 max-[1050px]:grid-cols-1">
+      <Panel title="Agent-owned components" subtitle="Each skill, child skill, script, MCP server, and CLI belongs to one agent and has a permission policy.">
+        <div className="grid gap-3">
+          {components.map((component) => (
+            <div key={component.configKey} className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-3 rounded-lg border border-[#dbe2dc] bg-[#fbfcfb] p-3 text-sm max-[720px]:grid-cols-1">
+              <div>
+                <Badge tone={component.kind === "Skill" ? "green" : component.kind === "MCP" ? "blue" : component.kind === "CLI" ? "amber" : "violet"}>
+                  {component.kind}
+                </Badge>
+              </div>
+              <div>
+                <div className="font-semibold">{component.name}</div>
+                <div className="mt-1 text-xs text-[#667269]">Owner: {component.ownerAgent}</div>
+                <p className="mt-2 text-sm leading-6 text-[#667269]">{component.purpose}</p>
+                <code className="mt-2 inline-block rounded-md bg-[#edf2ee] px-2 py-1 text-xs">{component.configKey}</code>
+              </div>
+              <Badge tone={component.permission === "Allowed" ? "green" : "amber"}>{component.permission}</Badge>
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="How agent config should read" subtitle="Simple hierarchy for one agent.">
+        <pre className="overflow-auto rounded-lg bg-[#101914] p-4 text-xs leading-6 text-[#d8efe0]">
+{`agent:
+  id: mind-ai-consultant
+  model_route:
+    primary: groq
+    fallback: [openrouter, openai, claude]
+  skills:
+    - mind-consulting-discovery
+    - lead-qualification-scorecard
+  scripts:
+    - proposal_seed_builder.ts
+  mcp:
+    - github
+    - lark-base-mcp
+  cli:
+    - vercel-cli
+    - lark-cli
+  memory:
+    protected_facts: true
+    compaction: handoff_or_18_messages
+  approval:
+    required_for: [email_send, public_post, destructive_tool]`}
+        </pre>
       </Panel>
     </div>
   );
@@ -969,22 +1355,46 @@ function MemoryView() {
 
 function DatabaseView() {
   return (
-    <Panel title="Runtime Database" subtitle="Separate Supabase/Postgres schema planned for v1 persistence.">
-      <div className="grid grid-cols-3 gap-3 max-[1050px]:grid-cols-2 max-[650px]:grid-cols-1">
-        {databaseGroups.map(([group, tables]) => (
-          <div key={group as string} className="min-h-36 rounded-lg border border-[#dbe2dc] bg-[#fbfcfb] p-3">
-            <div className="font-semibold">{group}</div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {(tables as string[]).map((table) => (
-                <code key={table} className="rounded-md bg-[#edf2ee] px-2 py-1 text-xs text-[#344039]">
-                  {table}
-                </code>
-              ))}
+    <div className="grid grid-cols-[minmax(420px,1fr)_minmax(320px,0.72fr)] gap-4 max-[1050px]:grid-cols-1">
+      <Panel title="Runtime Database" subtitle="Separate Supabase/Postgres schema planned for v1 persistence.">
+        <div className="grid grid-cols-3 gap-3 max-[1050px]:grid-cols-2 max-[650px]:grid-cols-1">
+          {databaseGroups.map(([group, tables]) => (
+            <div key={group as string} className="min-h-36 rounded-lg border border-[#dbe2dc] bg-[#fbfcfb] p-3">
+              <div className="font-semibold">{group}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(tables as string[]).map((table) => (
+                  <code key={table} className="rounded-md bg-[#edf2ee] px-2 py-1 text-xs text-[#344039]">
+                    {table}
+                  </code>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </Panel>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Supabase setup" subtitle="What can be automatic and what still needs founder/account action.">
+        <ContractBlock title="Can be automatic after env exists">
+          <BulletList items={[
+            "Check env status with GET /api/database/status",
+            "Serve migration SQL with GET /api/database/migration",
+            "Run migrations if DATABASE_URL is provided in a backend migration script",
+            "Use service role for runtime writes after schema exists",
+          ]} />
+        </ContractBlock>
+        <ContractBlock title="Needs Supabase account/project" className="mt-3">
+          <BulletList items={[
+            "Create the Supabase project unless a Supabase Management token is provided",
+            "Copy project URL, anon key, service role key, and database URL into Vercel env",
+            "Run SQL migration manually in Supabase SQL Editor for MVP, or via migration script later",
+          ]} />
+        </ContractBlock>
+        <ContractBlock title="Recommended MVP" className="mt-3">
+          <p className="text-sm leading-6 text-[#667269]">
+            Founder creates one separate Supabase project. Runtime app ships SQL migration. After keys are added, the app can check connection and write real records.
+          </p>
+        </ContractBlock>
+      </Panel>
+    </div>
   );
 }
 
