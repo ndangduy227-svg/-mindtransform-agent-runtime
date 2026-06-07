@@ -1,6 +1,6 @@
 "use client"
 
-import { RefreshCw, Download, ShieldCheck, Plus } from "lucide-react"
+import { RefreshCw, Download, ShieldCheck } from "lucide-react"
 
 const viewMeta: Record<string, [string, string]> = {
   config: ["Config Studio", "Configure Agent/Workflow/Memory theo luồng: target → SOW → input/output → tools → memory → publish."],
@@ -24,7 +24,6 @@ export function Topbar({ activeView }: { activeView: string }) {
         <button className="w-[38px] h-[38px] border border-line bg-surface rounded-[var(--radius)] grid place-items-center cursor-pointer hover:bg-surface-2"><RefreshCw size={17} /></button>
         <button className="w-[38px] h-[38px] border border-line bg-surface rounded-[var(--radius)] grid place-items-center cursor-pointer hover:bg-surface-2"><Download size={17} /></button>
         <button className="h-[38px] border border-line bg-transparent rounded-[var(--radius)] inline-flex items-center gap-2 px-3 cursor-pointer text-sm hover:bg-surface-2"><ShieldCheck size={17} /><span>3 approvals</span></button>
-        <button className="h-[38px] border border-[#17211b] bg-[#17211b] text-white rounded-[var(--radius)] inline-flex items-center gap-2 px-3 cursor-pointer text-sm"><Plus size={17} /><span>New agent</span></button>
       </div>
     </header>
   )
