@@ -136,27 +136,16 @@ export function CampaignChatView() {
   const sendMessage = async () => {
     if (!input.trim() || !selectedId) return
     setSending(true)
+    const msg = input
+    setInput("")
     try {
+      // POST sends user message + gets AI response in one call
       await fetch(`/api/campaigns/${selectedId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "user", content: input }),
+        body: JSON.stringify({ role: "user", content: msg }),
       })
-      setInput("")
       await loadDetail(selectedId)
-
-      // Simulate agent response (placeholder — will be replaced by real MCP call)
-      setTimeout(async () => {
-        await fetch(`/api/campaigns/${selectedId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: "assistant",
-            content: `[Mind AI Consultant] Cảm ơn bạn đã chia sẻ. Tôi đang phân tích thông tin để đưa ra đánh giá phù hợp nhất.`,
-          }),
-        })
-        await loadDetail(selectedId)
-      }, 800)
     } catch { /* ignore */ }
     setSending(false)
   }
