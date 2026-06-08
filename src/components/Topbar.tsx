@@ -3,11 +3,17 @@
 import { RefreshCw, Download, ShieldCheck } from "lucide-react"
 
 const viewMeta: Record<string, [string, string]> = {
+  // New clean views
+  agents: ["Agents", "Upload ROLE.md → config sub-agents, skills, scripts, MCP/CLI tools."],
+  workflows: ["Workflows", "Upload workflow MD = 1 use case. Dùng @workflow trong Chat."],
+  chat: ["Chat", "Chat với LLM, gắn @workflow.md để gửi use case context."],
+
+  // Legacy views
+  "agents-legacy": ["Agent Registry (Legacy)", "Quản lý đội agent, SOW, input/output, quyền tool và policy memory."],
   config: ["Config Studio", "Configure Agent/Workflow/Memory theo luồng: target → SOW → input/output → tools → memory → publish."],
   "config-upload": ["Agent Config Upload", "Upload ROLE.md, SKILL.md, scripts → parse → preview → save vào Supabase."],
   campaigns: ["Campaign Chat", "Mỗi chiến dịch = 1 session + lead + tổ chức. Chat, chẩn đoán, chấm điểm lead, xin duyệt."],
-  agents: ["Agent Registry", "Quản lý đội agent, SOW, input/output, quyền tool và policy memory."],
-  workflows: ["Workflow Registry", "Thiết kế luồng chạy từ website intake tới proposal seed và approval."],
+  "workflows-legacy": ["Workflow Registry (Legacy)", "Thiết kế luồng chạy từ website intake tới proposal seed và approval."],
   sessions: ["Sessions", "Theo dõi chat, lead, qualification, handoff và lịch sử message."],
   memory: ["Memory", "Quản lý context compaction, protected facts và handoff delta."],
   database: ["Database", "Bản đồ database riêng cho runtime, tách khỏi web hiện tại."],

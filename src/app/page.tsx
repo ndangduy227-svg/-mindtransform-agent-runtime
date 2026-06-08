@@ -1,9 +1,15 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Bot, MessagesSquare, LockKeyhole, Wallet } from "lucide-react"
 import { Sidebar } from "@/components/Sidebar"
 import { Topbar } from "@/components/Topbar"
+
+// New clean views
+import { AgentsConfigView } from "@/components/views/AgentsConfigView"
+import { WorkflowsUploadView } from "@/components/views/WorkflowsUploadView"
+import { ChatView } from "@/components/views/ChatView"
+
+// Legacy views (hidden, not deleted)
 import { AgentsView } from "@/components/views/AgentsView"
 import { ConfigView } from "@/components/views/ConfigView"
 import { WorkflowsView } from "@/components/views/WorkflowsView"
@@ -32,40 +38,24 @@ export default function Home() {
     setAgents(prev => prev.filter(a => a.id !== id))
   }, [])
 
-  const prodCount = agents.filter(a => a.status === "production").length
-  const draftCount = agents.filter(a => a.status !== "production").length
-
-  const kpis = [
-    { label: "Active agents", value: String(agents.length), delta: `${prodCount} production, ${draftCount} draft`, icon: Bot },
-    { label: "Open sessions", value: "24", delta: "6 waiting founder review", icon: MessagesSquare },
-    { label: "Protected facts", value: "138", delta: "No stale critical facts", icon: LockKeyhole },
-    { label: "Cost today", value: "$7.42", delta: "72% below guardrail", icon: Wallet },
-  ]
-
   return (
     <AppContext.Provider value={{ agents, addAgent, updateAgent, deleteAgent }}>
       <div className="grid grid-cols-[248px_1fr] min-h-screen">
         <Sidebar activeView={activeView} onNavigate={setActiveView} />
         <main className="min-w-0 flex flex-col">
           <Topbar activeView={activeView} />
-          <section className="w-full max-w-[1500px] mx-auto p-5 grid gap-4">
-            <div className="grid grid-cols-4 gap-3">
-              {kpis.map(k => (
-                <div key={k.label} className="min-h-[108px] border border-line rounded-[var(--radius)] bg-surface p-3.5 flex flex-col justify-between shadow-[0_6px_20px_rgba(30,45,36,0.04)]">
-                  <div className="flex items-center justify-between gap-2 text-muted text-sm">
-                    <span>{k.label}</span>
-                    <k.icon size={17} />
-                  </div>
-                  <strong className="text-[28px] leading-none">{k.value}</strong>
-                  <span className="text-xs text-green">{k.delta}</span>
-                </div>
-              ))}
-            </div>
-            {activeView === "agents" && <AgentsView />}
-            {activeView === "campaigns" && <CampaignChatView />}
+          <section className="w-full max-w-[1500px] mx-auto p-5">
+            {/* ── New clean views ── */}
+            {activeView === "agents" && <AgentsConfigView />}
+            {activeView === "workflows" && <WorkflowsUploadView />}
+            {activeView === "chat" && <ChatView />}
+
+            {/* ── Legacy views (accessible if showLegacy toggled in Sidebar) ── */}
+            {activeView === "agents-legacy" && <AgentsView />}
             {activeView === "config" && <ConfigView />}
             {activeView === "config-upload" && <ConfigUploadView />}
-            {activeView === "workflows" && <WorkflowsView />}
+            {activeView === "campaigns" && <CampaignChatView />}
+            {activeView === "workflows-legacy" && <WorkflowsView />}
             {activeView === "sessions" && <SessionsView />}
             {activeView === "memory" && <MemoryView />}
             {activeView === "database" && <DatabaseView />}
