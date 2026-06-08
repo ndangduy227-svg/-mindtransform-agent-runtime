@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { getErrorMessage } from "@/lib/api-error"
 
 // POST - request or decide approval
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .from("approval_decisions")
         .insert({
           approval_request_id: body.approval_request_id,
-          decision: body.decision, // "approved" | "rejected" | "needs_info"
+          decision: body.decision,
           actor: body.actor || "Founder",
           reason: body.reason,
         })
@@ -62,6 +63,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ error: "action must be 'request' or 'decide'" }, { status: 400 })
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown" }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 })
   }
 }

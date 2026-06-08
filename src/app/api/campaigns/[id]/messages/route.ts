@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { getErrorMessage } from "@/lib/api-error"
 
 // POST - send a message in a campaign session
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +22,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error) throw error
     return NextResponse.json(data, { status: 201 })
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown" }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 })
   }
 }

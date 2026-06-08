@@ -13,11 +13,14 @@ export function getSupabase(): SupabaseClient {
   return _supabase
 }
 
-// Lazy proxy: supabase client is only created when first accessed at runtime,
-// NOT at module-load / build time. This prevents "supabaseUrl is required"
-// errors during `next build`.
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    return (getSupabase() as unknown as Record<string | symbol, unknown>)[prop]
+// Lazy getter — safe during next build (no module-level createClient call)
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabase()
+    const value = Reflect.get(client, prop, receiver)
+    if (typeof value === "function") {
+      return value.bind(client)
+    }
+    return value
   },
 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
+import { getErrorMessage } from "@/lib/api-error"
 
 // GET - list all campaigns (sessions with joined data)
 export async function GET() {
@@ -19,7 +20,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json(data)
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown" }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 })
   }
 }
 
@@ -80,6 +81,6 @@ export async function POST(req: NextRequest) {
       contact,
     }, { status: 201 })
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Unknown" }, { status: 500 })
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 })
   }
 }
