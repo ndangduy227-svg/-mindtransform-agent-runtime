@@ -1,10 +1,12 @@
 "use client"
 
-import { Bot, Settings2, Workflow, MessagesSquare, Database, Table2, Gauge } from "lucide-react"
+import { Bot, Settings2, Workflow, MessagesSquare, Database, Table2, Gauge, MessageCircle, Upload } from "lucide-react"
 
 const navItems = [
   { key: "agents", label: "Agents", icon: Bot },
+  { key: "campaigns", label: "Campaigns", icon: MessageCircle },
   { key: "config", label: "Config", icon: Settings2 },
+  { key: "config-upload", label: "Config Upload", icon: Upload },
   { key: "workflows", label: "Workflows", icon: Workflow },
   { key: "sessions", label: "Sessions", icon: MessagesSquare },
   { key: "memory", label: "Memory", icon: Database },

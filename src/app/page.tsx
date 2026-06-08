@@ -11,6 +11,8 @@ import { SessionsView } from "@/components/views/SessionsView"
 import { MemoryView } from "@/components/views/MemoryView"
 import { DatabaseView } from "@/components/views/DatabaseView"
 import { CostsView } from "@/components/views/CostsView"
+import { CampaignChatView } from "@/components/views/CampaignChatView"
+import { ConfigUploadView } from "@/components/views/ConfigUploadView"
 import { agents as seedAgents, type Agent } from "@/lib/data"
 import { AppContext } from "@/lib/store"
 
@@ -60,7 +62,9 @@ export default function Home() {
               ))}
             </div>
             {activeView === "agents" && <AgentsView />}
+            {activeView === "campaigns" && <CampaignChatView />}
             {activeView === "config" && <ConfigView />}
+            {activeView === "config-upload" && <ConfigUploadView />}
             {activeView === "workflows" && <WorkflowsView />}
             {activeView === "sessions" && <SessionsView />}
             {activeView === "memory" && <MemoryView />}

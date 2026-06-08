@@ -18,8 +18,9 @@ export function Badge({ color, children }: { color: string; children: React.Reac
 }
 
 export function statusBadgeColor(status: string) {
-  if (status === "production" || status === "Qualified" || status === "Done") return "green"
-  if (status === "draft" || status === "Review" || status === "Waiting") return "amber"
-  if (status === "Needs info") return "blue"
+  if (status === "production" || status === "Qualified" || status === "Done" || status === "qualified" || status === "approved") return "green"
+  if (status === "draft" || status === "Review" || status === "Waiting" || status === "review" || status === "pending") return "amber"
+  if (status === "Needs info" || status === "open" || status === "new") return "blue"
+  if (status === "rejected") return "red"
   return "gray"
 }

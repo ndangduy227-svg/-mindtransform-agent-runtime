@@ -4,6 +4,8 @@ import { RefreshCw, Download, ShieldCheck } from "lucide-react"
 
 const viewMeta: Record<string, [string, string]> = {
   config: ["Config Studio", "Configure Agent/Workflow/Memory theo luồng: target → SOW → input/output → tools → memory → publish."],
+  "config-upload": ["Agent Config Upload", "Upload ROLE.md, SKILL.md, scripts → parse → preview → save vào Supabase."],
+  campaigns: ["Campaign Chat", "Mỗi chiến dịch = 1 session + lead + tổ chức. Chat, chẩn đoán, chấm điểm lead, xin duyệt."],
   agents: ["Agent Registry", "Quản lý đội agent, SOW, input/output, quyền tool và policy memory."],
   workflows: ["Workflow Registry", "Thiết kế luồng chạy từ website intake tới proposal seed và approval."],
   sessions: ["Sessions", "Theo dõi chat, lead, qualification, handoff và lịch sử message."],
