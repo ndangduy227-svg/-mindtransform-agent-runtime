@@ -1,0 +1,32 @@
+{
+  "name": "mindtransform-agent-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mind Agent Platform engine — LangGraph.js workflow runtime + GraphRAG (Neo4j) on Railway",
+  "scripts": {
+    "dev:server": "tsx watch src/server.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "start:server": "node dist/server.js",
+    "start:worker": "node dist/worker.js",
+    "ingest": "tsx src/graphrag/ingest.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/langgraph-checkpoint-postgres": "^0.0.3",
+    "@langchain/core": "^0.3.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "neo4j-driver": "^5.26.0",
+    "pg-boss": "^10.1.5",
+    "hono": "^4.6.0",
+    "@hono/node-server": "^1.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^20.0.0"
+  }
+}
