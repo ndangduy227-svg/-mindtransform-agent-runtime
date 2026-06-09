@@ -8,6 +8,8 @@ import { Topbar } from "@/components/Topbar"
 import { AgentsConfigView } from "@/components/views/AgentsConfigView"
 import { WorkflowsUploadView } from "@/components/views/WorkflowsUploadView"
 import { ChatView } from "@/components/views/ChatView"
+import { WorkflowRunsView } from "@/components/views/WorkflowRunsView"
+import { CostsDashboardView } from "@/components/views/CostsDashboardView"
 
 // Legacy views (hidden, not deleted)
 import { AgentsView } from "@/components/views/AgentsView"
@@ -49,6 +51,8 @@ export default function Home() {
             {activeView === "agents" && <AgentsConfigView />}
             {activeView === "workflows" && <WorkflowsUploadView />}
             {activeView === "chat" && <ChatView />}
+            {activeView === "runs" && <WorkflowRunsView />}
+            {activeView === "costs" && <CostsDashboardView />}
 
             {/* ── Legacy views (accessible if showLegacy toggled in Sidebar) ── */}
             {activeView === "agents-legacy" && <AgentsView />}
@@ -59,7 +63,7 @@ export default function Home() {
             {activeView === "sessions" && <SessionsView />}
             {activeView === "memory" && <MemoryView />}
             {activeView === "database" && <DatabaseView />}
-            {activeView === "costs" && <CostsView />}
+            {activeView === "costs-legacy" && <CostsView />}
           </section>
         </main>
       </div>

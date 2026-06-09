@@ -6,6 +6,8 @@ const mainNav = [
   { key: "agents", label: "Agents", icon: Bot },
   { key: "workflows", label: "Workflows", icon: FileText },
   { key: "chat", label: "Chat", icon: MessageCircle },
+  { key: "runs", label: "Runs", icon: Workflow },
+  { key: "costs", label: "Costs", icon: Gauge },
 ]
 
 // Hidden but not deleted — toggle showLegacy to restore
@@ -16,7 +18,7 @@ const legacyNav = [
   { key: "sessions", label: "Sessions", icon: MessagesSquare },
   { key: "memory", label: "Memory", icon: Database },
   { key: "database", label: "Database", icon: Table2 },
-  { key: "costs", label: "Costs", icon: Gauge },
+  { key: "costs-legacy", label: "Costs (Legacy)", icon: Gauge },
 ]
 
 const showLegacy = false

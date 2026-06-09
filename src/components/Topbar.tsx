@@ -7,6 +7,8 @@ const viewMeta: Record<string, [string, string]> = {
   agents: ["Agents", "Upload ROLE.md → config sub-agents, skills, scripts, MCP/CLI tools."],
   workflows: ["Workflows", "Upload workflow MD = 1 use case. Dùng @workflow trong Chat."],
   chat: ["Chat", "Chat với LLM, gắn @workflow.md để gửi use case context."],
+  runs: ["Workflow Runs", "Chạy WF_01 qua engine, theo dõi status, duyệt interrupt (Human Approval)."],
+  costs: ["Costs", "Cost & token thật từ model_calls — theo provider, theo ngày, call gần đây."],
 
   // Legacy views
   "agents-legacy": ["Agent Registry (Legacy)", "Quản lý đội agent, SOW, input/output, quyền tool và policy memory."],
@@ -17,7 +19,7 @@ const viewMeta: Record<string, [string, string]> = {
   sessions: ["Sessions", "Theo dõi chat, lead, qualification, handoff và lịch sử message."],
   memory: ["Memory", "Quản lý context compaction, protected facts và handoff delta."],
   database: ["Database", "Bản đồ database riêng cho runtime, tách khỏi web hiện tại."],
-  costs: ["Costs", "Quan sát cost, model calls, eval quality và budget guardrail."],
+  "costs-legacy": ["Costs (Legacy)", "Quan sát cost, model calls, eval quality và budget guardrail."],
 }
 
 export function Topbar({ activeView }: { activeView: string }) {
