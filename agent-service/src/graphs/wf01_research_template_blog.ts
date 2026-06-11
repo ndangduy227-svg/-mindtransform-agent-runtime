@@ -48,12 +48,20 @@ async function build(s: typeof WF.State) {
 
 async function approvalGate(s: typeof WF.State) {
   // ⏸ INTERRUPT: persist checkpoint, surface for founder. Resume via /approve.
+  // NOTE: no non-idempotent side effects in this node — it re-runs on resume.
   const decision = interrupt({
     type: "approval",
     runId: s.runId,
     summary: `Duyệt template + plan cho ${s.vertical}?`,
+    action: "scope_approval",
   });
   return { approved: decision === "approve" };
+}
+
+async function rejected(s: typeof WF.State) {
+  // Terminal branch for reject: no marketing, no publish. Worker maps
+  // approved=false on a finished run to status "rejected".
+  return { notes: [`[rejected] scope cho ${s.vertical} bị từ chối — dừng workflow.`] };
 }
 
 async function marketing(s: typeof WF.State) {
@@ -73,11 +81,21 @@ export async function buildWf01() {
     .addNode("build", build)
     .addNode("approval", approvalGate)
     .addNode("marketing", marketing)
+    .addNode("rejected", rejected)
     .addEdge(START, "research")
     .addEdge("research", "plan")
     .addEdge("plan", "build")
     .addEdge("build", "approval")
-    .addEdge("approval", "marketing")
+    // Conditional: founder decision routes the branch. Reject NEVER reaches marketing.
+    .addConditionalEdges("approval", (s) => (s.approved ? "marketing" : "rejected"), {
+      marketing: "marketing",
+      rejected: "rejected",
+    })
     .addEdge("marketing", END)
+    .addEdge("rejected", END)
     .compile({ checkpointer });
 }
+
+/** Canonical name (The Mind Flow). Old ID kept as alias — same graph, not a copy. */
+export const CANONICAL_GRAPH_ID = "wf_01_the_mind_flow";
+export const LEGACY_GRAPH_ALIAS = "wf01_research_template_blog";

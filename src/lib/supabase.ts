@@ -5,11 +5,17 @@ let _supabase: SupabaseClient | null = null
 export function getSupabase(): SupabaseClient {
   if (_supabase) return _supabase
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // This module is only imported from API routes (server-side). After the
+  // 0003 RLS lockdown anon has no row access, so the service role is required.
+  // SUPABASE_SERVICE_ROLE_KEY has no NEXT_PUBLIC_ prefix → never bundled to browser.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
   }
-  _supabase = createClient(url, key)
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("[supabase] using anon key — runtime tables are RLS-locked; set SUPABASE_SERVICE_ROLE_KEY")
+  }
+  _supabase = createClient(url, key, { auth: { persistSession: false } })
   return _supabase
 }
 

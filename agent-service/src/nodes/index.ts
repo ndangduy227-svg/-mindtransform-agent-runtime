@@ -24,7 +24,9 @@ export async function retrieveGraph(state: BaseState): Promise<Partial<BaseState
   return { context: renderContext(ctx) };
 }
 
-/** callModelNode: prompt = role + context + question → model reply. */
+/** callModelNode: prompt = role + context + question → model reply.
+ *  Returns DELTA only ([text]) — the graph reducer appends; returning the
+ *  whole array here would double notes every node (QC P2 finding). */
 export function makeCallModel(provider: Provider, stage: string) {
   return async (state: BaseState): Promise<Partial<BaseState>> => {
     const prompt = [state.context ?? "", state.question ?? ""].join("\n\n");
@@ -33,7 +35,7 @@ export function makeCallModel(provider: Provider, stage: string) {
       stage,
       runId: state.runId,
     });
-    return { notes: [...(state.notes ?? []), text] };
+    return { notes: [text] };
   };
 }
 

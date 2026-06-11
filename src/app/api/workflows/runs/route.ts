@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase"
 import { getErrorMessage } from "@/lib/api-error"
 
 const ENGINE_URL = process.env.AGENT_SERVICE_URL || "http://localhost:8080"
+const ENGINE_KEY = process.env.AGENT_SERVICE_KEY || ""
 
 // GET — list workflow runs (newest first)
 export async function GET() {
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${ENGINE_URL}/run`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": ENGINE_KEY },
         body: JSON.stringify({ graph, input, runId: run.id }),
       })
       engine = await res.json()

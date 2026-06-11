@@ -1,10 +1,13 @@
 # Mindtransform Agent Platform
 
 Monorepo for the Mind Agent Platform — internal AI agents + the public Mind AI
-Consultant. Two deployables that share one Supabase database and one Neo4j
+Consultant. Two deployables sharing one Supabase database and one Neo4j
 knowledge graph.
 
-> **Architecture source of truth:** `12_Agents/08_Agent_Runtime_Tool/Agents_Architecture_v3_GraphRAG.md`
+> Architecture: `12_Agents/08_Agent_Runtime_Tool/Agents_Architecture_v3_GraphRAG.md`
+> Canonical workflow: **The Mind Flow** (`wf_01_the_mind_flow`) —
+> `12_Agents/01_Workflows/WF_01_The_Mind_Flow.md`
+> QC baseline: `12_Agents/08_Agent_Runtime_Tool/HANDOFF_Oto_Hop_Nhat_Runtime_QC_2026-06-11.md`
 
 ## Architecture (v3)
 
@@ -12,60 +15,68 @@ knowledge graph.
 ┌─────────────────────────────┐   HTTP    ┌──────────────────────────────┐
 │ Next.js (this root) ─ Vercel │ ───────►  │ agent-service/ ─ Railway      │
 │ = CONTROL PLANE              │ /run      │ = ENGINE (always-on)          │
-│  • Config Studio (UI)        │ /consult  │  • LangGraph.js workflows     │
-│  • Cost dashboard            │ /approve  │  • pg-boss queue + worker     │
-│  • Approval UI               │ /status   │  • GraphRAG (Neo4j) layer     │
-│  • Web Mind public + chat    │ ◄───────  │  • tool connectors            │
-└──────────────┬───────────────┘  status   └───────────────┬──────────────┘
-               │                                            │
+│  • Agents / Workflows / Chat │ /consult  │  • LangGraph.js workflows     │
+│  • Runs + Approvals          │ /approve  │  • pg-boss queue + worker     │
+│  • Costs dashboard           │ /status   │  • GraphRAG (Neo4j) layer     │
+└──────────────┬───────────────┘ ◄───────  │  • model router + cost log    │
+               │                            └───────────────┬──────────────┘
                └────────► Supabase Postgres ◄───────────────┘
-                          (config · state · queue · cost · leads)
                                        │
                                   Neo4j Aura
-                            (knowledge graph + vector index)
 ```
 
-- **Control Plane (Next.js, this root)** — where humans configure agents, watch
-  cost, and approve workflow steps. Does **not** run agents itself; calls the engine over HTTP.
-- **Engine (`agent-service/`)** — always-on Node/TS service. Runs long workflows,
-  holds state (checkpoints), calls models + GraphRAG + tools. Deploys to Railway.
-- **GraphRAG** — knowledge stored as a graph (Industry→Pain→Solution→CaseStudy)
-  on Neo4j with a native vector index. Lets agents reason over relationships
-  (multi-hop), powering the MIND "compounding asset".
+## Status — honest, per QC verification levels
+
+Levels: **orchestration verified** (core loop proven) · **connector
+implemented** (code exists, not proven live) · **connector live verified**
+(proven against the real external system) · **production ready**.
+
+| Piece | Level | Evidence |
+|---|---|---|
+| Queue → graph → checkpoint → interrupt → resume | orchestration verified | live runs + 15 automated tests |
+| Approval semantics (approve / **reject** / duplicate) | orchestration verified | tests + live reject run `45409d2c` ended `rejected`, no marketing |
+| Notes reducer (no duplication) | orchestration verified | automated test |
+| Queue retry propagation (retryable vs fail-fast) | orchestration verified | error-classifier tests |
+| Engine API auth (x-api-key) + Zod validation | orchestration verified | 401/422 verified live |
+| RLS lockdown (no anon access to runtime tables) | live verified | anon read returns empty post-0003 |
+| Migrations incl. `workflow_runs` (0001–0003) | live verified | applied to live DB |
+| GraphRAG ingest + multi-hop query (Neo4j Aura) | live verified | sample-doc smoke; **grounding relevance gate NOT built** (known cross-domain leak) |
+| Model router + real cost logging → `model_calls` | live verified | Groq usage rows with provider-reported tokens |
+| Lark build tool | **stub** | returns placeholder — not workflow output |
+| Screenshot / evidence tool | **stub** | — |
+| Publisher + post-publish verification | **not built** | — |
+| Idempotency / resource registry / receipts | **not built** | — |
+| Projects / chat-per-project / Graph Viewer UI | **not built** | build brief: The Mind Flow Runtime v1 |
+| Engine deploy on Railway | **not done** | runs locally |
+
+**The Mind Flow business workflow is NOT end-to-end yet** — research/plan run
+on real models, but build/evidence/publish are stubs. See the build brief and
+QC handoff for the P1/P2 backlog (execution harness, real tools, projects UI).
 
 ## Repo layout
 
 ```
-src/                  Next.js Control Plane (Config Studio, dashboards, public chat)
-  app/api/            CRUD + LLM test routes
-  components/, lib/
-supabase/migrations/  Postgres schema (agents, sessions, model_calls, RLS, …)
-agent-service/        ⬅ ENGINE (LangGraph.js + GraphRAG + pg-boss). See its README.
+src/                  Next.js Control Plane (views, API routes)
+supabase/migrations/  0001 schema · 0002 (superseded) · 0003 runs + RLS lockdown
+agent-service/        ENGINE — see agent-service/README.md
 ```
 
 ## Quick start
 
-**Control Plane (Next.js):**
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+# Control Plane (needs SUPABASE_SERVICE_ROLE_KEY + AGENT_SERVICE_KEY in .env.local)
+npm install && npm run dev          # http://localhost:3000
+
+# Engine (fill agent-service/.env: Supabase, Neo4j, model keys, ENGINE_API_KEY)
+cd agent-service && npm install
+npm test                            # 15 tests: approval semantics, retry classifier
+npx tsx --env-file=.env src/graphrag/setup.ts   # one-shot Neo4j schema
+npm run dev:server                  # API :8080 (x-api-key required on /run /approve)
+npm run dev:worker
 ```
 
-**Engine:** see [`agent-service/README.md`](./agent-service/README.md).
+## Next (from The Mind Flow build brief)
 
-## Build roadmap (v3)
-
-| Phase | Scope |
-|---|---|
-| P0 | agent-service skeleton: server + worker + pg-boss + Neo4j ping + hello graph |
-| P1 | Consultant sync (`/consult`) + GraphRAG query + real cost logging → dashboard |
-| P2 | WF_01 async: research→plan→build→marketing, retry, approval interrupt, GraphRAG ingest |
-| P3 | multi-tenant: deployments + Lark embed + per-tenant billing |
-
-Stop after P2 → run MIND with one real client before P3.
-
-## Founder setup (accounts/keys — see v3 doc §8)
-
-Railway · Neo4j Aura · Supabase · model API keys (Groq/Gemini/Claude) · Lark app.
-Fill `agent-service/.env`, run `agent-service/schema/neo4j_constraints.cypher`,
-then ingest the KB seed docs.
+P0 correctness/security ✅ (this commit) → P1 execution harness (node contract,
+error taxonomy, idempotency/receipts) → P2 real tools (Lark adapter, evidence,
+publisher, verification) → Projects/Graph-Viewer UI → Railway deploy.

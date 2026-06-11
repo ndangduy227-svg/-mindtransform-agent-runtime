@@ -11,7 +11,8 @@
     "start:server": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "ingest": "tsx src/graphrag/ingest.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@langchain/langgraph": "^0.2.0",
@@ -27,6 +28,7 @@
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "vitest": "^2.1.0"
   }
 }

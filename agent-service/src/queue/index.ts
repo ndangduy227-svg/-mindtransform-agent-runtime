@@ -20,10 +20,11 @@ export async function getBoss(): Promise<PgBoss> {
 
 export interface WorkflowJob {
   runId: string;
-  graph: string; // e.g. "wf01_research_template_blog"
+  graph: string; // e.g. "wf_01_the_mind_flow" (alias: wf01_research_template_blog)
   tenantId: string;
   input: Record<string, unknown>;
-  resumeFrom?: string; // checkpoint id when resuming after approval
+  resumeFrom?: string; // checkpoint thread id when resuming after approval
+  decision?: "approve" | "reject"; // founder decision carried into interrupt resume
 }
 
 export async function enqueueWorkflow(job: WorkflowJob): Promise<string | null> {
