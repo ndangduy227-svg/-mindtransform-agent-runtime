@@ -39,14 +39,19 @@ implemented** (code exists, not proven live) · **connector live verified**
 | Queue retry propagation (retryable vs fail-fast) | orchestration verified | error-classifier tests |
 | Engine API auth (x-api-key) + Zod validation | orchestration verified | 401/422 verified live |
 | RLS lockdown (no anon access to runtime tables) | live verified | anon read returns empty post-0003 |
-| Migrations incl. `workflow_runs` (0001–0003) | live verified | applied to live DB |
+| Migrations 0001–0004 (runs, projects, events, receipts tables) | live verified | applied to live DB |
+| **Projects model**: New Chat → project + workflow pin + session | live verified | project `1633f3a9` created via UI API, cancel creates nothing |
+| **Project Workspace** (Chat / Graph / Outputs / Usage tabs) | live verified | chat through engine persisted; run b92eec1b + 814810ff followed live |
+| **Runtime event stream** (§10 schema) + per-node runs | live verified | run.queued→run.started→node.*→approval.requested→run.completed |
+| **Approval from workspace UI** (approve/reject buttons) | live verified | round-2 run approved via `/api/approvals` → resumed → done |
+| **Usage accounting** per project, chat vs workflow, by node | live verified | provider-reported tokens; chat=1/workflow=6 split on smoke project |
 | GraphRAG ingest + multi-hop query (Neo4j Aura) | live verified | sample-doc smoke; **grounding relevance gate NOT built** (known cross-domain leak) |
 | Model router + real cost logging → `model_calls` | live verified | Groq usage rows with provider-reported tokens |
 | Lark build tool | **stub** | returns placeholder — not workflow output |
 | Screenshot / evidence tool | **stub** | — |
 | Publisher + post-publish verification | **not built** | — |
-| Idempotency / resource registry / receipts | **not built** | — |
-| Projects / chat-per-project / Graph Viewer UI | **not built** | build brief: The Mind Flow Runtime v1 |
+| Idempotency / resource registry / receipts | **tables only** | 0004 created artifacts/external_resources/side_effect_receipts; no writers yet |
+| The Mind Flow full node set (intake…publish per brief §6) | **not built** | current graph = research→plan→build→approval→marketing/rejected |
 | Engine deploy on Railway | **not done** | runs locally |
 
 **The Mind Flow business workflow is NOT end-to-end yet** — research/plan run
@@ -75,8 +80,9 @@ npm run dev:server                  # API :8080 (x-api-key required on /run /app
 npm run dev:worker
 ```
 
-## Next (from The Mind Flow build brief)
+## Next (from The Mind Flow build brief, §14 order)
 
-P0 correctness/security ✅ (this commit) → P1 execution harness (node contract,
-error taxonomy, idempotency/receipts) → P2 real tools (Lark adapter, evidence,
-publisher, verification) → Projects/Graph-Viewer UI → Railway deploy.
+P0 correctness/security ✅ → Step 1 projects model ✅ → events/usage ✅ →
+Project Workspace UI ✅ → **next: graph refactor to full Mind Flow nodes (§6)
++ P1 execution harness (node contract, idempotency, receipts) + real tools
+(Lark adapter, evidence, publisher, verification)** → Railway deploy.

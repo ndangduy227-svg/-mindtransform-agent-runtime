@@ -4,6 +4,7 @@ import { RefreshCw, Download, ShieldCheck } from "lucide-react"
 
 const viewMeta: Record<string, [string, string]> = {
   // New clean views
+  projects: ["Projects", "New Chat = 1 project mới. Mỗi project pin The Mind Flow, chat giao việc, theo dõi graph + usage."],
   agents: ["Agents", "Upload ROLE.md → config sub-agents, skills, scripts, MCP/CLI tools."],
   workflows: ["Workflows", "Upload workflow MD = 1 use case. Dùng @workflow trong Chat."],
   chat: ["Chat", "Chat với LLM, gắn @workflow.md để gửi use case context."],

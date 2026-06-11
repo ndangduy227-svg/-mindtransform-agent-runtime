@@ -26,10 +26,15 @@ vi.mock("../src/graphrag/query.js", () => ({
   renderContext: vi.fn(() => ""),
 }));
 
-vi.mock("../src/db/supabase.js", () => ({
-  supabase: { from: () => ({ upsert: async () => ({ error: null }), insert: async () => ({ error: null }) }) },
-  DATABASE_URL: "",
-}));
+vi.mock("../src/db/supabase.js", () => {
+  // chainable no-op stub: from().insert/upsert/update(...).eq(...) → {error:null}
+  const result = Promise.resolve({ error: null, data: null });
+  const chain: any = new Proxy(() => chain, {
+    get: (_t, prop) => (prop === "then" ? result.then.bind(result) : () => chain),
+    apply: () => chain,
+  });
+  return { supabase: { from: () => chain }, DATABASE_URL: "" };
+});
 
 vi.mock("../src/memory/checkpointer.js", () => {
   const saver = new MemorySaver();

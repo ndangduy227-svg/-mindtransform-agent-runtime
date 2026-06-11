@@ -2,6 +2,7 @@ import { StateGraph, Annotation, interrupt, START, END } from "@langchain/langgr
 import { getCheckpointer } from "../memory/checkpointer.js";
 import { retrieveGraph, makeCallModel } from "../nodes/index.js";
 import { pickProvider } from "../models/router.js";
+import { instrument } from "../events.js";
 
 /**
  * WF_01 Research → Plan → Build → (approval) → Marketing — ASYNC (v3 §3.2).
@@ -15,6 +16,7 @@ import { pickProvider } from "../models/router.js";
 const WF = Annotation.Root({
   tenantId: Annotation<string>(),
   runId: Annotation<string>(),
+  projectId: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
   vertical: Annotation<string>(), // e.g. "Spa"
   question: Annotation<string>(),
   context: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
@@ -76,12 +78,14 @@ async function marketing(s: typeof WF.State) {
 export async function buildWf01() {
   const checkpointer = await getCheckpointer();
   return new StateGraph(WF)
-    .addNode("research", research)
-    .addNode("plan", plan)
-    .addNode("build", build)
+    .addNode("research", instrument("research", research))
+    .addNode("plan", instrument("plan", plan))
+    .addNode("build", instrument("build", build))
+    // approval NOT instrumented: interrupt() throws to pause; the worker
+    // records awaiting_approval + approval.requested when it sees the pause.
     .addNode("approval", approvalGate)
-    .addNode("marketing", marketing)
-    .addNode("rejected", rejected)
+    .addNode("marketing", instrument("marketing", marketing))
+    .addNode("rejected", instrument("rejected", rejected))
     .addEdge(START, "research")
     .addEdge("research", "plan")
     .addEdge("plan", "build")

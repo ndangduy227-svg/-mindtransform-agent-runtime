@@ -2,16 +2,12 @@ import { Command } from "@langchain/langgraph";
 import { getBoss, WF_QUEUE, type WorkflowJob } from "./queue/index.js";
 import { GRAPH_FACTORIES } from "./worker_graphs.js";
 import { supabase } from "./db/supabase.js";
+import { emitEvent, nodeFinished, type RunContext } from "./events.js";
 
 /**
  * Worker: pulls jobs from pg-boss → runs the LangGraph workflow.
- * QC P0/P1 fixes encoded here:
- *  - resume uses the REAL founder decision (never hard-coded approve)
- *  - reject routes to the rejected branch; run status = "rejected"
- *  - retryable errors are RE-THROWN so pg-boss retry policy engages;
- *    non-retryable errors ack the job and mark the run failed
- *  - unknown graph marks the run failed (not silently dropped)
- *  - approval requests are deduped by run_id + interrupt_id (upsert)
+ * Lifecycle is mirrored to Supabase (workflow_runs + node runs + event stream)
+ * so the Project Workspace / Graph Viewer can follow along by polling.
  */
 
 /** Transient signatures → let pg-boss retry. Policy/auth/validation → fail fast. */
@@ -24,13 +20,19 @@ export function isRetryableError(message: string): boolean {
   );
 }
 
-async function setRunStatus(runId: string, status: string, output?: unknown, input?: unknown) {
-  const row: Record<string, unknown> = { id: runId, status };
+async function setRunStatus(job: WorkflowJob, status: string, output?: unknown) {
+  const row: Record<string, unknown> = {
+    id: job.runId,
+    status,
+    graph_key: job.graph,
+  };
+  // Resume jobs don't carry projectId — NEVER null-overwrite the linkage.
+  if (job.projectId) row.project_id = job.projectId;
   if (output !== undefined) row.output = output;
-  if (input !== undefined) row.input = input;
+  if (Object.keys(job.input ?? {}).length) row.input = job.input;
   if (["done", "failed", "rejected"].includes(status)) row.finished_at = new Date().toISOString();
   const { error } = await supabase.from("workflow_runs").upsert(row, { onConflict: "id" });
-  if (error) console.warn(`[worker] workflow_runs upsert failed: ${error.message}`);
+  if (error) console.error(`[worker] workflow_runs upsert FAILED: ${error.message}`);
 }
 
 /** Dedupe by run_id + interrupt_id — re-delivery/resume never creates a second request. */
@@ -45,54 +47,81 @@ async function upsertApprovalRequest(runId: string, interruptId: string, summary
     },
     { onConflict: "run_id,interrupt_id" },
   );
-  if (error) console.warn(`[worker] approval_requests upsert failed: ${error.message}`);
+  if (error) console.error(`[worker] approval_requests upsert FAILED: ${error.message}`);
 }
 
 async function handle(job: WorkflowJob): Promise<void> {
+  const ctx: RunContext = { runId: job.runId, projectId: job.projectId };
   const factory = GRAPH_FACTORIES[job.graph];
   if (!factory) {
     console.error(`[worker] unknown graph: ${job.graph}`);
-    await setRunStatus(job.runId, "failed", { error: `unknown graph: ${job.graph}` }, job.input);
+    await setRunStatus(job, "failed", { error: `unknown graph: ${job.graph}` });
+    await emitEvent(ctx, "run.failed", { error: `unknown graph: ${job.graph}` });
     return; // non-retryable: ack
   }
   const graph = await factory();
   const config = { configurable: { thread_id: job.runId } };
 
   try {
-    const result = job.resumeFrom
-      ? await graph.invoke(new Command({ resume: job.decision ?? "approve" }), config)
-      : await graph.invoke(
-          {
-            tenantId: job.tenantId,
-            runId: job.runId,
-            vertical: (job.input?.vertical as string) ?? "Spa",
-          },
-          config,
-        );
+    let result;
+    if (job.resumeFrom) {
+      const decision = job.decision ?? "approve";
+      await emitEvent(ctx, decision === "approve" ? "approval.approved" : "approval.rejected", {
+        decision,
+      });
+      result = await graph.invoke(new Command({ resume: decision }), config);
+      // close out the approval node's status (it isn't instrumented — interrupt re-runs it)
+      await nodeFinished(ctx, "approval", decision === "approve" ? "success" : "rejected", { decision });
+    } else {
+      await setRunStatus(job, "running");
+      await emitEvent(ctx, "run.started", { graph: job.graph, input: job.input });
+      result = await graph.invoke(
+        {
+          tenantId: job.tenantId,
+          runId: job.runId,
+          projectId: job.projectId ?? "",
+          vertical: (job.input?.vertical as string) ?? "Spa",
+        },
+        config,
+      );
+    }
 
     // Paused? — pending next-nodes on the checkpoint mean an interrupt fired.
     const st = await graph.getState(config);
     if (st.next?.length) {
       const intr = st.tasks?.flatMap((t: any) => t.interrupts ?? [])[0];
       const interruptId: string = intr?.ns?.[0] ?? intr?.id ?? `${job.runId}:interrupt`;
+      const nodeId: string = st.next[0] ?? "approval";
       console.log(`[worker] run ${job.runId} paused for approval (${interruptId})`);
-      await setRunStatus(job.runId, "awaiting_approval", undefined, job.input);
+      await setRunStatus(job, "awaiting_approval");
+      await nodeFinished(ctx, nodeId, "awaiting_approval", { summary: intr?.value?.summary });
       await upsertApprovalRequest(job.runId, interruptId, intr?.value?.summary ?? "Workflow approval");
+      await emitEvent(ctx, "approval.requested", {
+        nodeId,
+        interruptId,
+        summary: intr?.value?.summary,
+        action: intr?.value?.action,
+      });
       return;
     }
 
     // Finished: approve path → done; reject path → rejected.
     const finalStatus = result?.approved === false ? "rejected" : "done";
     console.log(`[worker] run ${job.runId} ${finalStatus}`);
-    await setRunStatus(job.runId, finalStatus, { notes: result?.notes ?? [] }, job.input);
+    await setRunStatus(job, finalStatus, { notes: result?.notes ?? [] });
+    await emitEvent(ctx, finalStatus === "done" ? "run.completed" : "run.rejected", {
+      noteCount: result?.notes?.length ?? 0,
+    });
   } catch (e) {
     const msg = (e as Error).message ?? String(e);
     if (isRetryableError(msg)) {
       console.warn(`[worker] run ${job.runId} transient error, letting queue retry: ${msg}`);
+      await emitEvent(ctx, "node.retrying", { error: msg });
       throw e; // pg-boss retryLimit/backoff engages
     }
     console.error(`[worker] run ${job.runId} FAILED (non-retryable):`, msg);
-    await setRunStatus(job.runId, "failed", { error: msg }, job.input);
+    await setRunStatus(job, "failed", { error: msg });
+    await emitEvent(ctx, "run.failed", { error: msg });
   }
 }
 

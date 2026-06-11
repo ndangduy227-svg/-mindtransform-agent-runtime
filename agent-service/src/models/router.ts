@@ -10,9 +10,11 @@ export type Provider = "groq" | "gemini" | "anthropic";
 
 interface CallOpts {
   tenantId: string;
-  stage: string;
+  stage: string; // doubles as node_id for workflow calls
   runId?: string;
   sessionId?: string;
+  projectId?: string;
+  source?: "chat" | "workflow";
   maxTokens?: number;
   system?: string;
 }
@@ -77,6 +79,10 @@ export async function callModel(
     tokensOut,
     costUsd,
     sessionId: opts.sessionId,
+    projectId: opts.projectId,
+    runId: opts.runId,
+    nodeId: opts.stage,
+    source: opts.source ?? "workflow",
   });
   return { text, tokensIn, tokensOut, costUsd };
 }
@@ -173,7 +179,9 @@ export async function embed(text: string): Promise<number[]> {
   return d.embedding?.values ?? new Array(768).fill(0);
 }
 
-// ── Cost log → model_calls (schema: supabase_tier0_schema.sql) ─
+// ── Cost log → model_calls (+0004 usage dimensions, build brief §8) ─
+// Tokens come from provider usage metadata (usage_source=provider_reported),
+// never from character estimates.
 async function logModelCall(row: {
   provider: Provider;
   model: string;
@@ -181,6 +189,10 @@ async function logModelCall(row: {
   tokensOut: number;
   costUsd: number;
   sessionId?: string;
+  projectId?: string;
+  runId?: string;
+  nodeId?: string;
+  source?: "chat" | "workflow";
 }): Promise<void> {
   const { error } = await supabase.from("model_calls").insert({
     provider: row.provider,
@@ -190,6 +202,11 @@ async function logModelCall(row: {
     cost_usd: Number(row.costUsd.toFixed(6)),
     status: "completed",
     session_id: row.sessionId ?? null,
+    project_id: row.projectId || null,
+    workflow_run_id: row.runId || null,
+    node_id: row.nodeId ?? null,
+    source: row.source ?? "workflow",
+    usage_source: "provider_reported",
   });
   if (error) console.warn("[router] model_calls log failed:", error.message);
 }

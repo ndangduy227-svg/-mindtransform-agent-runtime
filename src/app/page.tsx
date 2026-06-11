@@ -10,6 +10,8 @@ import { WorkflowsUploadView } from "@/components/views/WorkflowsUploadView"
 import { ChatView } from "@/components/views/ChatView"
 import { WorkflowRunsView } from "@/components/views/WorkflowRunsView"
 import { CostsDashboardView } from "@/components/views/CostsDashboardView"
+import { ProjectsView } from "@/components/views/ProjectsView"
+import { ProjectWorkspaceView } from "@/components/views/ProjectWorkspaceView"
 
 // Legacy views (hidden, not deleted)
 import { AgentsView } from "@/components/views/AgentsView"
@@ -25,7 +27,8 @@ import { agents as seedAgents, type Agent } from "@/lib/data"
 import { AppContext } from "@/lib/store"
 
 export default function Home() {
-  const [activeView, setActiveView] = useState("agents")
+  const [activeView, setActiveView] = useState("projects")
+  const [openProjectId, setOpenProjectId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Agent[]>(seedAgents)
 
   const addAgent = useCallback((agent: Agent) => {
@@ -48,6 +51,10 @@ export default function Home() {
           <Topbar activeView={activeView} />
           <section className="w-full max-w-[1500px] mx-auto p-5">
             {/* ── New clean views ── */}
+            {activeView === "projects" && !openProjectId && <ProjectsView onOpen={id => setOpenProjectId(id)} />}
+            {activeView === "projects" && openProjectId && (
+              <ProjectWorkspaceView projectId={openProjectId} onBack={() => setOpenProjectId(null)} />
+            )}
             {activeView === "agents" && <AgentsConfigView />}
             {activeView === "workflows" && <WorkflowsUploadView />}
             {activeView === "chat" && <ChatView />}

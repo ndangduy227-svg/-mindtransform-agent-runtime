@@ -22,6 +22,7 @@ export interface WorkflowJob {
   runId: string;
   graph: string; // e.g. "wf_01_the_mind_flow" (alias: wf01_research_template_blog)
   tenantId: string;
+  projectId?: string; // every run belongs to a project (build brief §4)
   input: Record<string, unknown>;
   resumeFrom?: string; // checkpoint thread id when resuming after approval
   decision?: "approve" | "reject"; // founder decision carried into interrupt resume

@@ -10,6 +10,7 @@ import { runTool } from "../tools/index.js";
 export interface BaseState {
   tenantId: string;
   runId?: string;
+  projectId?: string;
   question?: string;
   context?: string;
   notes?: string[];
@@ -34,6 +35,8 @@ export function makeCallModel(provider: Provider, stage: string) {
       tenantId: state.tenantId,
       stage,
       runId: state.runId,
+      projectId: state.projectId,
+      source: "workflow",
     });
     return { notes: [text] };
   };

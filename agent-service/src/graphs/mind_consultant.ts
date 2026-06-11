@@ -21,6 +21,7 @@ export async function runConsultant(
   message: string,
   tenantId: string,
   history: string[] = [],
+  meta: { projectId?: string; sessionId?: string } = {},
 ): Promise<ConsultResult> {
   // 1 GraphRAG read for relevant industry/pain knowledge
   const ctx = await graphQuery(message, tenantId);
@@ -37,7 +38,13 @@ export async function runConsultant(
 
   // Gemini Flash preferred; Groq fallback while GOOGLE_API_KEY absent.
   const provider = process.env.GOOGLE_API_KEY ? "gemini" : "groq";
-  const { text } = await callModel(provider, prompt, { tenantId, stage: "consult" });
+  const { text } = await callModel(provider, prompt, {
+    tenantId,
+    stage: "consult",
+    source: "chat",
+    projectId: meta.projectId,
+    sessionId: meta.sessionId,
+  });
 
   return { reply: text, contextUsed: contextText };
 }

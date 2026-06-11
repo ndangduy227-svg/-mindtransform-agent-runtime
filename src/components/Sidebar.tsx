@@ -3,6 +3,7 @@
 import { Bot, FileText, MessageCircle, Settings2, Workflow, MessagesSquare, Database, Table2, Gauge } from "lucide-react"
 
 const mainNav = [
+  { key: "projects", label: "Projects", icon: MessagesSquare },
   { key: "agents", label: "Agents", icon: Bot },
   { key: "workflows", label: "Workflows", icon: FileText },
   { key: "chat", label: "Chat", icon: MessageCircle },
