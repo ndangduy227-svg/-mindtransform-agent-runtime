@@ -14,12 +14,14 @@ const GRAPHS: Record<string, () => Promise<any>> = {
   wf01_research_template_blog: buildWf01,
 };
 
-async function setRunStatus(runId: string, status: string, output?: unknown) {
-  const patch: Record<string, unknown> = { status };
-  if (output !== undefined) patch.output = output;
-  if (status === "done" || status === "failed") patch.finished_at = new Date().toISOString();
-  const { error } = await supabase.from("workflow_runs").update(patch).eq("id", runId);
-  if (error) console.warn(`[worker] workflow_runs update failed: ${error.message}`);
+async function setRunStatus(runId: string, status: string, output?: unknown, input?: unknown) {
+  const row: Record<string, unknown> = { id: runId, status };
+  if (output !== undefined) row.output = output;
+  if (input !== undefined) row.input = input;
+  if (status === "done" || status === "failed") row.finished_at = new Date().toISOString();
+  // Upsert: Control Plane pre-creates the row; direct engine /run calls don't.
+  const { error } = await supabase.from("workflow_runs").upsert(row, { onConflict: "id" });
+  if (error) console.warn(`[worker] workflow_runs upsert failed: ${error.message}`);
 }
 
 async function createApprovalRequest(runId: string, summary: string) {
@@ -58,13 +60,13 @@ async function handle(job: WorkflowJob) {
     if (st.next?.length) {
       const intr = st.tasks?.flatMap((t: any) => t.interrupts ?? [])[0];
       console.log(`[worker] run ${job.runId} paused for approval`);
-      await setRunStatus(job.runId, "awaiting_approval");
+      await setRunStatus(job.runId, "awaiting_approval", undefined, job.input);
       await createApprovalRequest(job.runId, intr?.value?.summary ?? "Workflow approval");
       return;
     }
 
     console.log(`[worker] run ${job.runId} completed`);
-    await setRunStatus(job.runId, "done", { notes: result?.notes ?? [] });
+    await setRunStatus(job.runId, "done", { notes: result?.notes ?? [] }, job.input);
   } catch (e) {
     console.error(`[worker] run ${job.runId} FAILED:`, (e as Error).message);
     await setRunStatus(job.runId, "failed", { error: (e as Error).message });
