@@ -35,8 +35,9 @@ export async function runConsultant(
     .filter(Boolean)
     .join("\n\n");
 
-  // Gemini Flash for chat (cheap, fast). Groq for classify could front this later.
-  const { text } = await callModel("gemini", prompt, { tenantId, stage: "consult" });
+  // Gemini Flash preferred; Groq fallback while GOOGLE_API_KEY absent.
+  const provider = process.env.GOOGLE_API_KEY ? "gemini" : "groq";
+  const { text } = await callModel(provider, prompt, { tenantId, stage: "consult" });
 
   return { reply: text, contextUsed: contextText };
 }

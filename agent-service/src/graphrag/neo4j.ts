@@ -19,7 +19,7 @@ export function getDriver(): Driver {
 }
 
 export async function withSession<T>(fn: (s: Session) => Promise<T>): Promise<T> {
-  const s = getDriver().session();
+  const s = getDriver().session({ database: process.env.NEO4J_DATABASE || "neo4j" });
   try {
     return await fn(s);
   } finally {

@@ -20,13 +20,24 @@ interface Triple {
 async function extractTriples(chunkText: string, tenantId: string): Promise<Triple[]> {
   const prompt = `Trích các thực thể và quan hệ từ đoạn sau cho domain tư vấn chuyển đổi số (ngành, pain, giải pháp, case study, MIND phase).
 Trả JSON array: [{"source":{"name","label"},"rel","target":{"name","label"}}].
-Label hợp lệ: Industry, Pain, Solution, CaseStudy, MindPhase.
+Label hợp lệ (tiếng Anh): Industry, Pain, Solution, CaseStudy, MindPhase.
+"rel" PHẢI là một trong: HAS_PAIN, SOLVED_BY, PROVEN_IN, BELONGS_TO_PHASE, RELATED_TO.
+"name" giữ tiếng Việt tự nhiên, ngắn gọn.
 Đoạn:\n${chunkText}`;
-  const { text } = await callModel("gemini", prompt, { tenantId, stage: "ingest_extract" });
+  // Groq-first while GOOGLE_API_KEY is absent; switch to gemini when available.
+  const provider = process.env.GOOGLE_API_KEY ? "gemini" : "groq";
+  const { text } = await callModel(provider, prompt, { tenantId, stage: "ingest_extract" });
+  // Models often wrap JSON in ```fences``` or prose — extract the first [...] block.
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) {
+    console.warn("[ingest] extract returned no JSON array, skipping chunk");
+    return [];
+  }
   try {
-    return JSON.parse(text) as Triple[];
+    const parsed = JSON.parse(match[0]) as Triple[];
+    return parsed.filter(t => t?.source?.name && t?.rel && t?.target?.name);
   } catch {
-    console.warn("[ingest] extract returned non-JSON, skipping chunk");
+    console.warn("[ingest] extract JSON parse failed, skipping chunk");
     return [];
   }
 }
