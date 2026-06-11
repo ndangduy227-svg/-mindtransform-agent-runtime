@@ -1,6 +1,7 @@
 import { StateGraph, Annotation, interrupt, START, END } from "@langchain/langgraph";
 import { getCheckpointer } from "../memory/checkpointer.js";
 import { retrieveGraph, makeCallModel } from "../nodes/index.js";
+import { pickProvider } from "../models/router.js";
 
 /**
  * WF_01 Research → Plan → Build → (approval) → Marketing — ASYNC (v3 §3.2).
@@ -23,13 +24,20 @@ const WF = Annotation.Root({
 
 async function research(s: typeof WF.State) {
   const r = await retrieveGraph({ tenantId: s.tenantId, question: `pain points ngành ${s.vertical}` });
-  const reply = await makeCallModel("gemini", "research")({ ...s, context: r.context });
+  const reply = await makeCallModel(pickProvider("gemini"), "research")({
+    ...s,
+    context: r.context,
+    question: `Tóm tắt pain points vận hành điển hình của ngành ${s.vertical} (3-5 gạch đầu dòng, tiếng Việt).`,
+  });
   return { context: r.context, notes: reply.notes ?? [] };
 }
 
 async function plan(s: typeof WF.State) {
-  // Plan uses the heavier model (ba-dx blueprint). Sonnet via router.
-  const reply = await makeCallModel("anthropic", "plan")(s);
+  // Plan prefers the heavier model (Sonnet); falls back while key absent.
+  const reply = await makeCallModel(pickProvider("anthropic"), "plan")({
+    ...s,
+    question: `Dựa trên research:\n${s.notes.join("\n")}\nĐề xuất blueprint giải pháp Lark Base cho ngành ${s.vertical} (kiến trúc bảng + automation, ngắn gọn).`,
+  });
   return { notes: reply.notes ?? [] };
 }
 
@@ -50,7 +58,10 @@ async function approvalGate(s: typeof WF.State) {
 
 async function marketing(s: typeof WF.State) {
   // TODO: parallel blog ‖ screenshot → aggregate. Stub sequential.
-  const reply = await makeCallModel("gemini", "marketing")(s);
+  const reply = await makeCallModel(pickProvider("gemini"), "marketing")({
+    ...s,
+    question: `Viết 3 hook marketing ngắn (tiếng Việt) cho giải pháp ${s.vertical} dựa trên:\n${s.notes.slice(-1)[0] ?? ""}`,
+  });
   return { notes: reply.notes ?? [] };
 }
 

@@ -14,6 +14,7 @@ export async function getBoss(): Promise<PgBoss> {
   boss = new PgBoss(DATABASE_URL);
   boss.on("error", (e) => console.error("[pg-boss]", e));
   await boss.start();
+  await boss.createQueue(WF_QUEUE).catch(() => {}); // idempotent; exists = fine
   return boss;
 }
 

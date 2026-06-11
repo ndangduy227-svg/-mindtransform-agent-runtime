@@ -1,3 +1,4 @@
+// @ts-expect-error pg ships no ESM types in this setup
 import pg from "pg";
 
 /**
@@ -10,8 +11,7 @@ const PASSWORDS = ["Duybt2272002@", "Duybt2272002", "duybt2272002", "Duybt220720
 // Direct host is IPv6-only (AAAA → AWS Singapore). Project region = ap-southeast-1.
 // Newer projects sit on aws-1-* pooler hosts; try both gens + both ports.
 const HOSTS = [
-  "aws-1-ap-southeast-1.pooler.supabase.com",
-  "aws-0-ap-southeast-1.pooler.supabase.com",
+  "aws-1-ap-southeast-2.pooler.supabase.com", // from Dashboard Connect (Sydney)
 ];
 const PORTS = [5432, 6543];
 

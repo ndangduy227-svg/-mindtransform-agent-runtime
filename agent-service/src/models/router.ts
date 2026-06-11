@@ -31,6 +31,18 @@ const PRICE: Record<Provider, { in: number; out: number }> = {
   anthropic: { in: 3, out: 15 },
 };
 
+/** Prefer the given provider if its key exists; else first provider with a key. */
+export function pickProvider(preferred: Provider): Provider {
+  const hasKey: Record<Provider, boolean> = {
+    groq: !!process.env.GROQ_API_KEY,
+    gemini: !!process.env.GOOGLE_API_KEY,
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+  };
+  if (hasKey[preferred]) return preferred;
+  for (const p of ["groq", "gemini", "anthropic"] as Provider[]) if (hasKey[p]) return p;
+  throw new Error("No model provider key configured");
+}
+
 const MODEL: Record<Provider, string> = {
   groq: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
   gemini: process.env.GEMINI_MODEL || "gemini-2.5-flash",
@@ -83,7 +95,7 @@ async function callGroq(prompt: string, system: string | undefined, maxTokens: n
     body: JSON.stringify({ model: MODEL.groq, messages, temperature: 0.7, max_tokens: maxTokens }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
-  const d = await res.json();
+  const d = (await res.json()) as any;
   return {
     text: d.choices?.[0]?.message?.content ?? "",
     tokensIn: d.usage?.prompt_tokens ?? 0,
@@ -105,7 +117,7 @@ async function callGemini(prompt: string, system: string | undefined, maxTokens:
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
   );
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
-  const d = await res.json();
+  const d = (await res.json()) as any;
   return {
     text: d.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
     tokensIn: d.usageMetadata?.promptTokenCount ?? 0,
@@ -132,7 +144,7 @@ async function callAnthropic(prompt: string, system: string | undefined, maxToke
     }),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
-  const d = await res.json();
+  const d = (await res.json()) as any;
   return {
     text: d.content?.[0]?.text ?? "",
     tokensIn: d.usage?.input_tokens ?? 0,
@@ -157,7 +169,7 @@ export async function embed(text: string): Promise<number[]> {
     },
   );
   if (!res.ok) throw new Error(`Embedding ${res.status}: ${await res.text()}`);
-  const d = await res.json();
+  const d = (await res.json()) as any;
   return d.embedding?.values ?? new Array(768).fill(0);
 }
 

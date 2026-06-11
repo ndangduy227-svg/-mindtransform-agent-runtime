@@ -26,6 +26,12 @@ export async function graphQuery(
 ): Promise<GraphContext> {
   const vector = await embed(question);
 
+  // No embedding key yet → zero-vector (invalid for the index). Fall back to
+  // keyword entry: match entity names against question words, then traverse.
+  if (vector.every((v) => v === 0)) {
+    return keywordQuery(question, tenantId);
+  }
+
   return withSession(async (s) => {
     // 1 + 2: vector search → entry chunks → seed entities
     const res = await s.run(
@@ -52,6 +58,41 @@ export async function graphQuery(
       chunks: (row.get("chunks") ?? []).filter(Boolean),
       entities: (row.get("entities") ?? []).filter((e: { name?: string }) => e?.name),
       relations: (row.get("relTypes") ?? []).flat().filter(Boolean),
+    };
+  });
+}
+
+/** Keyword fallback (no embeddings): entity-name match → traverse → chunks. */
+async function keywordQuery(question: string, tenantId: string): Promise<GraphContext> {
+  const words = question
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 3);
+  if (!words.length) return { chunks: [], entities: [], relations: [] };
+
+  return withSession(async (s) => {
+    const res = await s.run(
+      `
+      MATCH (e {tenant_id: $tenantId})
+      WHERE NOT e:Chunk AND NOT e:Doc
+        AND any(w IN $words WHERE toLower(e.name) CONTAINS w)
+      OPTIONAL MATCH path = (e)-[*1..${MAX_HOPS}]-(related {tenant_id: $tenantId})
+      WHERE NOT related:Chunk AND NOT related:Doc
+      OPTIONAL MATCH (c:Chunk {tenant_id: $tenantId})-[:MENTIONS]->(e)
+      RETURN
+        collect(DISTINCT c.text)[..5] AS chunks,
+        collect(DISTINCT { name: e.name, label: head(labels(e)) }) +
+          collect(DISTINCT { name: related.name, label: head(labels(related)) }) AS entities,
+        collect(DISTINCT [r IN relationships(path) | type(r)]) AS relTypes
+      `,
+      { words, tenantId },
+    );
+    const row = res.records[0];
+    if (!row) return { chunks: [], entities: [], relations: [] };
+    return {
+      chunks: (row.get("chunks") ?? []).filter(Boolean),
+      entities: (row.get("entities") ?? []).filter((e: { name?: string }) => e?.name),
+      relations: [...new Set((row.get("relTypes") ?? []).flat(2).filter(Boolean))] as string[],
     };
   });
 }

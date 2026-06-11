@@ -29,7 +29,8 @@ app.post("/consult", async (c) => {
 app.post("/run", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const tenant = resolveTenant(body.tenantId);
-  const runId = crypto.randomUUID();
+  // Control Plane pre-creates workflow_runs and passes its id; standalone calls get a fresh one.
+  const runId = body.runId ?? crypto.randomUUID();
   await enqueueWorkflow({
     runId,
     graph: body.graph ?? "wf01_research_template_blog",
