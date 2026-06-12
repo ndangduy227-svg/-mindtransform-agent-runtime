@@ -51,10 +51,11 @@ implemented** (code exists, not proven live) · **connector live verified**
 | Publish reject → draft_complete (output stays Draft) | orchestration verified | automated test |
 | GraphRAG ingest + multi-hop query (Neo4j Aura) | live verified | sample-doc smoke; **grounding relevance gate NOT built** (known cross-domain leak) |
 | Model router + real cost logging → `model_calls` | live verified | Groq usage rows with provider-reported tokens |
-| Lark adapter (plan→preflight→apply→verify→receipt) | **contract only** | tools/lark.ts returns `blocked` until Step 4 implements CLI/MCP |
-| Evidence adapter (live_ui→api_render ladder + disclosure) | **contract only** | tools/evidence.ts — Step 4 |
-| Publisher strategy router (cms→static_git→pause) | **contract only** | tools/publisher.ts — Step 4 |
-| Idempotency / resource registry / receipts | **tables only** | 0004 created artifacts/external_resources/side_effect_receipts; no writers yet |
+| **Lark adapter** (find→create→verify→receipt, idempotent registry) | **connector live verified** | run `da3d0ef5` built real base `KYScbdo5…` — 4 tables + records + 2 views + 2 forms; verify read-back OK; 10 receipts |
+| **Evidence api_render** (real records + disclosure) | connector live verified | evidence artifacts saved with explicit disclosure |
+| Idempotency / resource registry / receipts | live verified | external_resources + side_effect_receipts populated by lark adapter |
+| Publisher strategy router (cms→static_git→pause) | **contract only** | tools/publisher.ts — next |
+| Post-publish verification gate (QC §16) | **not built** | next |
 | Engine deploy on Railway | **not done** | runs locally |
 
 **The Mind Flow business workflow is NOT end-to-end yet** — research/plan run
@@ -85,10 +86,7 @@ npm run dev:worker
 
 ## Next (from The Mind Flow build brief, §14 order)
 
-P0 correctness/security ✅ → Step 1 projects model ✅ → events/usage ✅ →
-Project Workspace UI ✅ → Step 3 full Mind Flow graph ✅ → **next: Step 4 real
-adapters (Lark CLI/MCP build+verify, evidence capture, publisher + post-publish
-verification gate) + P1 harness (idempotency writers, receipts)** → Railway deploy.
-
-> Unblocker cần founder: tạo Lark app → `LARK_APP_ID`/`LARK_APP_SECRET` vào
-> `agent-service/.env` (run hiện blocked đúng thiết kế tại `lark_build`).
+P0 ✅ → projects model ✅ → events/usage ✅ → Workspace UI ✅ → Step 3 full
+graph ✅ → **Step 4 Lark+evidence adapters ✅ (live verified)** → next:
+publisher (cms/static_git) + post-publish verification gate (QC §16) +
+GraphRAG relevance gate → Railway deploy.
