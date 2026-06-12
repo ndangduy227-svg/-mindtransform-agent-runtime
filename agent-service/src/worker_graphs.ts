@@ -1,4 +1,4 @@
-import { buildWf01, CANONICAL_GRAPH_ID, LEGACY_GRAPH_ALIAS } from "./graphs/wf01_research_template_blog.js";
+import { buildTheMindFlow, CANONICAL_GRAPH_ID, LEGACY_GRAPH_ALIAS } from "./graphs/the_mind_flow.js";
 
 /**
  * Graph registry shared by server (validation) and worker (execution).
@@ -6,8 +6,8 @@ import { buildWf01, CANONICAL_GRAPH_ID, LEGACY_GRAPH_ALIAS } from "./graphs/wf01
  * the SAME graph — one workflow, two names during migration.
  */
 export const GRAPH_FACTORIES: Record<string, () => Promise<any>> = {
-  [CANONICAL_GRAPH_ID]: buildWf01,
-  [LEGACY_GRAPH_ALIAS]: buildWf01,
+  [CANONICAL_GRAPH_ID]: buildTheMindFlow,
+  [LEGACY_GRAPH_ALIAS]: buildTheMindFlow,
 };
 
 export const KNOWN_GRAPHS = Object.keys(GRAPH_FACTORIES);

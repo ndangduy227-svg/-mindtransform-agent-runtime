@@ -30,7 +30,7 @@ async function setRunStatus(job: WorkflowJob, status: string, output?: unknown) 
   if (job.projectId) row.project_id = job.projectId;
   if (output !== undefined) row.output = output;
   if (Object.keys(job.input ?? {}).length) row.input = job.input;
-  if (["done", "failed", "rejected"].includes(status)) row.finished_at = new Date().toISOString();
+  if (["done", "failed", "rejected", "blocked"].includes(status)) row.finished_at = new Date().toISOString();
   const { error } = await supabase.from("workflow_runs").upsert(row, { onConflict: "id" });
   if (error) console.error(`[worker] workflow_runs upsert FAILED: ${error.message}`);
 }
@@ -66,12 +66,16 @@ async function handle(job: WorkflowJob): Promise<void> {
     let result;
     if (job.resumeFrom) {
       const decision = job.decision ?? "approve";
+      // which approval node is pending? (there are 2 gates now)
+      const pre = await graph.getState(config);
+      const pendingNode: string = pre.next?.[0] ?? "scope_approval";
       await emitEvent(ctx, decision === "approve" ? "approval.approved" : "approval.rejected", {
         decision,
+        nodeId: pendingNode,
       });
       result = await graph.invoke(new Command({ resume: decision }), config);
       // close out the approval node's status (it isn't instrumented — interrupt re-runs it)
-      await nodeFinished(ctx, "approval", decision === "approve" ? "success" : "rejected", { decision });
+      await nodeFinished(ctx, pendingNode, decision === "approve" ? "success" : "rejected", { decision });
     } else {
       await setRunStatus(job, "running");
       await emitEvent(ctx, "run.started", { graph: job.graph, input: job.input });
@@ -105,12 +109,26 @@ async function handle(job: WorkflowJob): Promise<void> {
       return;
     }
 
-    // Finished: approve path → done; reject path → rejected.
-    const finalStatus = result?.approved === false ? "rejected" : "done";
-    console.log(`[worker] run ${job.runId} ${finalStatus}`);
-    await setRunStatus(job, finalStatus, { notes: result?.notes ?? [] });
-    await emitEvent(ctx, finalStatus === "done" ? "run.completed" : "run.rejected", {
+    // Finished — map The Mind Flow terminals (brief §6/§7):
+    //   blocked (tool/credential missing) · rejected (scope refused after revisions)
+    //   done + draft (publish refused) · done
+    let finalStatus = "done";
+    if (result?.blocked) finalStatus = "blocked";
+    else if (result?.scopeApproved === false) finalStatus = "rejected";
+    const output = {
+      notes: result?.notes ?? [],
+      blocked: result?.blocked ?? null,
+      publishStatus: result?.publishApproved === false ? "draft" : result?.publicUrl ? "published" : null,
+      publicUrl: result?.publicUrl || null,
+      warnings: result?.warnings ?? [],
+    };
+    console.log(`[worker] run ${job.runId} ${finalStatus}${result?.blocked ? ` (blocked@${result.blocked.node})` : ""}`);
+    await setRunStatus(job, finalStatus, output);
+    const eventType =
+      finalStatus === "done" ? "run.completed" : finalStatus === "blocked" ? "run.blocked" : "run.rejected";
+    await emitEvent(ctx, eventType, {
       noteCount: result?.notes?.length ?? 0,
+      ...(result?.blocked ? { blocker: result.blocked } : {}),
     });
   } catch (e) {
     const msg = (e as Error).message ?? String(e);

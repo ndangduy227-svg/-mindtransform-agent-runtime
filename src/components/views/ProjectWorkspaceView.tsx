@@ -26,8 +26,13 @@ interface Workspace {
   }
 }
 
-// The Mind Flow v1 — display order (engine graph nodes today)
-const FLOW_NODES = ["research", "plan", "build", "approval", "marketing", "rejected"]
+// The Mind Flow v1 — display order (brief §6; keep in sync with engine MIND_FLOW_NODES)
+const FLOW_NODES = [
+  "project_intake", "research", "workflow_plan", "scope_approval",
+  "lark_build", "lark_verify", "evidence_capture", "docs_and_blog",
+  "artifact_claim_gate", "publish_approval", "publish_strategy",
+  "public_verify", "receipt_and_handoff",
+]
 const fmtTok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`)
 
 export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string; onBack: () => void }) {
@@ -219,6 +224,17 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
       {/* OUTPUTS */}
       {tab === "outputs" && (
         <section className="border border-line rounded-[var(--radius)] bg-surface p-4 grid gap-3">
+          {latestRun?.output?.blocked && (
+            <div className="border border-red/30 bg-red-soft rounded-[var(--radius)] p-4 text-sm">
+              <strong className="block mb-1">🚫 Run BLOCKED tại node: {latestRun.output.blocked.node}</strong>
+              <span className="text-muted">{latestRun.output.blocked.reason}</span>
+            </div>
+          )}
+          {latestRun?.output?.publishStatus === "draft" && (
+            <div className="border border-amber/40 bg-amber-soft rounded-[var(--radius)] p-3 text-sm">
+              📝 Publish bị từ chối — output giữ ở <strong>Draft</strong>.
+            </div>
+          )}
           {latestRun?.output?.notes?.length ? (
             (latestRun.output.notes as string[]).map((n, i) => (
               <div key={i} className="border border-line rounded-[var(--radius)] p-4 bg-[#fbfcfb] text-sm whitespace-pre-wrap leading-relaxed">{n}</div>

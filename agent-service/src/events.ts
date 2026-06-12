@@ -88,7 +88,12 @@ export function instrument<S extends { runId: string; projectId?: string }>(
       const out = await fn(s);
       // Note: interrupt() THROWS GraphInterrupt — it skips this success path,
       // so approval nodes stay "running" until the worker marks awaiting_approval.
-      await nodeFinished(ctx, nodeId, "success", summarize(out));
+      const blocked = (out as { blocked?: { node: string; reason: string } }).blocked;
+      if (blocked && blocked.node === nodeId) {
+        await nodeFinished(ctx, nodeId, "blocked", summarize(out), { message: blocked.reason });
+      } else {
+        await nodeFinished(ctx, nodeId, "success", summarize(out));
+      }
       return out;
     } catch (e) {
       const name = (e as Error)?.name ?? "";

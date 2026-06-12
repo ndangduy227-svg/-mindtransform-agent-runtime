@@ -152,10 +152,11 @@ export function ProjectsView({ onOpen }: { onOpen: (id: string) => void }) {
   )
 }
 
-export function statusColor(s: string): "green" | "amber" | "red" | "blue" | "gray" {
+export function statusColor(s: string): "green" | "amber" | "red" | "blue" | "gray" | "violet" {
   if (s === "done" || s === "success") return "green"
-  if (s === "awaiting_approval" || s === "running" ) return s === "running" ? "blue" : "amber"
+  if (s === "running") return "blue"
+  if (s === "awaiting_approval" || s === "partial") return "amber"
   if (s === "failed") return "red"
-  if (s === "rejected") return "gray"
-  return "gray"
+  if (s === "blocked") return "violet"
+  return "gray" // rejected, pending
 }

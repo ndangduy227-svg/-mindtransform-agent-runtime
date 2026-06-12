@@ -45,13 +45,16 @@ implemented** (code exists, not proven live) · **connector live verified**
 | **Runtime event stream** (§10 schema) + per-node runs | live verified | run.queued→run.started→node.*→approval.requested→run.completed |
 | **Approval from workspace UI** (approve/reject buttons) | live verified | round-2 run approved via `/api/approvals` → resumed → done |
 | **Usage accounting** per project, chat vs workflow, by node | live verified | provider-reported tokens; chat=1/workflow=6 split on smoke project |
+| **The Mind Flow full graph** (13 nodes, 2 gates, brief §6) | orchestration verified | 16 tests + live run `5688926f`: paused scope_approval → approve → **blocked@lark_build** |
+| **Blocked-honesty (§7)**: missing tool ⇒ run `blocked`, blocker surfaced | live verified | output.blocked = "missing LARK_APP_ID / LARK_APP_SECRET"; node run status `blocked` |
+| Scope reject → plan revision loop (cap 1) → rejected | orchestration verified | automated test |
+| Publish reject → draft_complete (output stays Draft) | orchestration verified | automated test |
 | GraphRAG ingest + multi-hop query (Neo4j Aura) | live verified | sample-doc smoke; **grounding relevance gate NOT built** (known cross-domain leak) |
 | Model router + real cost logging → `model_calls` | live verified | Groq usage rows with provider-reported tokens |
-| Lark build tool | **stub** | returns placeholder — not workflow output |
-| Screenshot / evidence tool | **stub** | — |
-| Publisher + post-publish verification | **not built** | — |
+| Lark adapter (plan→preflight→apply→verify→receipt) | **contract only** | tools/lark.ts returns `blocked` until Step 4 implements CLI/MCP |
+| Evidence adapter (live_ui→api_render ladder + disclosure) | **contract only** | tools/evidence.ts — Step 4 |
+| Publisher strategy router (cms→static_git→pause) | **contract only** | tools/publisher.ts — Step 4 |
 | Idempotency / resource registry / receipts | **tables only** | 0004 created artifacts/external_resources/side_effect_receipts; no writers yet |
-| The Mind Flow full node set (intake…publish per brief §6) | **not built** | current graph = research→plan→build→approval→marketing/rejected |
 | Engine deploy on Railway | **not done** | runs locally |
 
 **The Mind Flow business workflow is NOT end-to-end yet** — research/plan run
@@ -83,6 +86,9 @@ npm run dev:worker
 ## Next (from The Mind Flow build brief, §14 order)
 
 P0 correctness/security ✅ → Step 1 projects model ✅ → events/usage ✅ →
-Project Workspace UI ✅ → **next: graph refactor to full Mind Flow nodes (§6)
-+ P1 execution harness (node contract, idempotency, receipts) + real tools
-(Lark adapter, evidence, publisher, verification)** → Railway deploy.
+Project Workspace UI ✅ → Step 3 full Mind Flow graph ✅ → **next: Step 4 real
+adapters (Lark CLI/MCP build+verify, evidence capture, publisher + post-publish
+verification gate) + P1 harness (idempotency writers, receipts)** → Railway deploy.
+
+> Unblocker cần founder: tạo Lark app → `LARK_APP_ID`/`LARK_APP_SECRET` vào
+> `agent-service/.env` (run hiện blocked đúng thiết kế tại `lark_build`).
