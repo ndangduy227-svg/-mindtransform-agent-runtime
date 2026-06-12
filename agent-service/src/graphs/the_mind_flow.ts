@@ -45,6 +45,8 @@ const WF = Annotation.Root({
   docsMd: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
   // external results
   larkReceipts: Annotation<LarkResourceReceipt[]>({ reducer: (a, b) => [...(a ?? []), ...b], default: () => [] }),
+  appToken: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
+  baseUrl: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
   evidence: Annotation<EvidenceItem[]>({ reducer: (a, b) => [...(a ?? []), ...b], default: () => [] }),
   publishStrategy: Annotation<PublishStrategy | "">({ reducer: (_, b) => b, default: () => "" }),
   publicUrl: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
@@ -137,34 +139,72 @@ async function scope_approval(s: S) {
 }
 
 async function lark_build(s: S) {
+  // 1. LLM converts the Markdown plan into a STRUCTURED build spec (the LLM
+  //    decides shape; the harness executes — Tool Boundary).
+  const specText = await llm(
+    s,
+    "lark_spec",
+    `Plan:\n${s.planMd}\n\nChuyển plan thành spec JSON xây Lark Base cho "${s.vertical}".
+Trả CHÍNH XÁC JSON (không markdown):
+{"tables":[{"logicalKey":"snake_key","name":"Tên tiếng Việt","fields":[{"name":"Tên cột","type":"text|number|date"}]}],
+ "views":[{"logicalKey":"key.view","table":"table_logicalKey","name":"Tên view","type":"grid|kanban"}],
+ "forms":[{"logicalKey":"key.form","table":"table_logicalKey","name":"Tên form"}],
+ "sampleRecords":{"table_logicalKey":[{"Tên cột":"giá trị"}]}}
+Giới hạn: ≤4 tables, ≤6 fields/table, ≤2 views, ≤2 forms, ≤3 records/table. Field đầu mỗi table type text.`,
+    { heavy: true },
+  );
+  const m = specText.match(/\{[\s\S]*\}/);
+  let spec: { tables?: any[]; views?: any[]; forms?: any[]; sampleRecords?: Record<string, any[]> } | null = null;
+  try { spec = m ? JSON.parse(m[0]) : null; } catch { /* handled below */ }
+  if (!spec?.tables?.length) {
+    return { blocked: { node: "lark_build", reason: "lark spec generation failed (no parsable tables)" }, notes: ["[lark_build] BLOCKED: spec parse fail"] };
+  }
+
+  // 2. APPLY through the idempotent adapter (find → create → verify → receipt)
   const result = await buildLarkSolution(
-    { baseName: `Mindtransform - ${s.vertical}`, tables: [], views: [], forms: [], dashboardBlocks: 5 },
-    { tenantId: s.tenantId, packetSlug: s.projectId || s.runId },
+    {
+      baseName: `Mindtransform - ${s.vertical}`,
+      tables: spec.tables,
+      views: spec.views ?? [],
+      forms: spec.forms ?? [],
+      sampleRecords: spec.sampleRecords ?? {},
+    },
+    { tenantId: s.tenantId, projectId: s.projectId || s.runId, runId: s.runId },
   );
   if (result.status === "blocked") {
     return { blocked: { node: "lark_build", reason: result.reason }, notes: [`[lark_build] BLOCKED: ${result.reason}`] };
   }
   return {
     larkReceipts: result.receipts,
+    appToken: result.appToken,
+    baseUrl: result.baseUrl,
+    warnings: result.warnings,
     notes: [`[lark_build] ${result.status} — ${result.receipts.length} resources @ ${result.baseUrl}`],
-    ...(result.status === "partial" ? { warnings: ["lark build partial — một số resource thiếu"] } : {}),
   };
 }
 
 async function lark_verify(s: S) {
-  const v = await verifyLarkResources(s.larkReceipts);
+  const v = await verifyLarkResources(s.appToken, s.larkReceipts);
   if (v.status === "blocked") {
     return { blocked: { node: "lark_verify", reason: v.missing.join("; ") }, notes: [`[lark_verify] BLOCKED`] };
   }
-  return { notes: [`[lark_verify] ${v.status}: ${v.verified} verified, missing=${v.missing.length}`] };
+  return {
+    notes: [`[lark_verify] ${v.status}: ${v.verified} resources verified${v.missing.length ? `, missing: ${v.missing.join(", ")}` : ""}`],
+    ...(v.missing.length ? { warnings: v.missing.map(x => `verify missing: ${x}`) } : {}),
+  };
 }
 
 async function evidence_capture(s: S) {
-  const r = await captureEvidence([{ name: "main_table" }, { name: "dashboard" }]);
+  const r = await captureEvidence({
+    projectId: s.projectId || s.runId,
+    runId: s.runId,
+    appToken: s.appToken,
+    receipts: s.larkReceipts,
+  });
   if (r.status === "blocked") {
     return { blocked: { node: "evidence_capture", reason: r.reason }, notes: [`[evidence] BLOCKED: ${r.reason}`] };
   }
-  return { evidence: r.items, notes: [`[evidence] ${r.items.length} items (${r.strategy})`] };
+  return { evidence: r.items, notes: [`[evidence] ${r.items.length} items (${r.strategy}, có disclosure)`] };
 }
 
 async function docs_and_blog(s: S) {

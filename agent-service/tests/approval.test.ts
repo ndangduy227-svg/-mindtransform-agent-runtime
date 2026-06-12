@@ -18,6 +18,8 @@ vi.mock("../src/models/router.js", () => ({
     text:
       opts.stage === "project_intake"
         ? `{"problemFrame":"test_frame","inScope":["a","b","c"],"outOfScope":["kiotviet_writeback"],"prohibitedClaims":["integrated_with_kiotviet"]}`
+        : opts.stage === "lark_spec"
+        ? `{"tables":[{"logicalKey":"t1","name":"Bảng 1","fields":[{"name":"Tên","type":"text"}]}],"views":[],"forms":[],"sampleRecords":{"t1":[{"Tên":"mẫu"}]}}`
         : `[${opts.stage}] mocked output — ${"nội dung đủ dài cho claim gate. ".repeat(8)}`,
     tokensIn: 10,
     tokensOut: 5,
@@ -52,15 +54,17 @@ vi.mock("../src/tools/lark.js", () => ({
   buildLarkSolution: vi.fn(async () => ({
     status: "success",
     baseUrl: "https://lark.example/base/x",
-    receipts: [{ logicalKey: "t1", idempotencyKey: "k1", kind: "lark_table", status: "verified" }],
+    appToken: "bascTEST",
+    warnings: [],
+    receipts: [{ logicalKey: "t1", idempotencyKey: "k1", kind: "lark_table", externalId: "tblX", status: "verified" }],
   })),
-  verifyLarkResources: vi.fn(async () => ({ status: "success", verified: 1, missing: [] })),
+  verifyLarkResources: vi.fn(async () => ({ status: "success", verified: 2, missing: [] })),
 }));
 vi.mock("../src/tools/evidence.js", () => ({
   captureEvidence: vi.fn(async () => ({
     status: "success",
     strategy: "api_render",
-    items: [{ type: "api_render", name: "main_table", disclosure: "rendered from API data" }],
+    items: [{ type: "api_render", name: "evidence_t1", disclosure: "rendered from API data" }],
   })),
 }));
 vi.mock("../src/tools/publisher.js", () => ({
