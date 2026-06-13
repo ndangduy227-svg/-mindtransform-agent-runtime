@@ -1,5 +1,6 @@
 import { withSession } from "./neo4j.js";
 import { embed } from "../models/router.js";
+export { contextRelevance } from "./relevance.js";
 
 const MAX_HOPS = Number(process.env.GRAPHRAG_MAX_HOPS ?? 2);
 

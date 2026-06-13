@@ -14,15 +14,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const content: string = (body.message ?? "").trim()
     if (!content) return NextResponse.json({ error: "message required" }, { status: 400 })
 
-    const { data: session } = await supabase
-      .from("sessions").select("id").eq("project_id", projectId).order("created_at").limit(1).single()
+    const [{ data: session }, { data: project }] = await Promise.all([
+      supabase
+        .from("sessions").select("id").eq("project_id", projectId).order("created_at").limit(1).single(),
+      supabase
+        .from("projects").select("name, client_name, industry, objective").eq("id", projectId).single(),
+    ])
     if (!session) return NextResponse.json({ error: "project has no chat session" }, { status: 404 })
 
-    await supabase.from("session_messages").insert({ session_id: session.id, role: "user", content })
-
+    // Load history before inserting the current message. Otherwise the engine
+    // receives the same user turn once in history and once as `message`.
     const { data: history } = await supabase
       .from("session_messages").select("role, content").eq("session_id", session.id)
       .order("created_at", { ascending: false }).limit(10)
+
+    await supabase.from("session_messages").insert({ session_id: session.id, role: "user", content })
 
     let reply = ""
     try {
@@ -31,13 +37,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         headers: { "Content-Type": "application/json", "x-api-key": ENGINE_KEY },
         body: JSON.stringify({
           message: content,
-          history: (history ?? []).reverse().map(m => `${m.role}: ${m.content}`),
+          history: (history ?? [])
+            .reverse()
+            .filter(m => m.role === "user")
+            .map(m => `user: ${m.content}`),
           projectId,
           sessionId: session.id,
+          projectContext: [
+            `Khách hàng: ${project?.client_name ?? project?.name ?? ""}`,
+            `Ngành: ${project?.industry ?? ""}`,
+            `Mục tiêu: ${project?.objective ?? ""}`,
+          ].join("\n"),
         }),
       })
       const data = await res.json()
-      reply = data.reply ?? data.error ?? "(engine error)"
+      if (!res.ok) {
+        return NextResponse.json({ error: data.error ?? "engine error" }, { status: 502 })
+      }
+      reply = data.reply ?? "(engine returned no reply)"
     } catch {
       reply = `(engine unreachable at ${ENGINE_URL})`
     }

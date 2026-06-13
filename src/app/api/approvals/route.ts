@@ -8,7 +8,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("approval_requests")
       .select("id, session_id, request_type, payload, status, created_at")
-      .eq("status", "pending")
+      .in("status", ["pending", "resume_failed"])
       .order("created_at", { ascending: false })
       .limit(50)
 

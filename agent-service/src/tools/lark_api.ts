@@ -38,29 +38,47 @@ export interface LarkResponse<T = any> {
   data: T;
 }
 
-/** Authenticated request with one rate-limit retry (650ms pacing per QC). */
+function retryDelay(res: Response, attempt: number): number {
+  const retryAfter = Number(res.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return retryAfter * 1000;
+  return Math.min(4000, 500 * 2 ** attempt);
+}
+
+/** Authenticated request with bounded retries and token refresh. */
 export async function larkFetch<T = any>(
   path: string,
   method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
   body?: unknown,
 ): Promise<LarkResponse<T>> {
-  const token = await getTenantToken();
-  const doFetch = async (): Promise<LarkResponse<T>> => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const token = await getTenantToken();
     const res = await fetch(`${DOMAIN}${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    return (await res.json()) as LarkResponse<T>;
-  };
+    const raw = await res.text();
+    let data: LarkResponse<T>;
+    try {
+      data = JSON.parse(raw) as LarkResponse<T>;
+    } catch {
+      throw new Error(`lark ${method} ${path} returned non-JSON HTTP ${res.status}: ${raw.slice(0, 240)}`);
+    }
 
-  let d = await doFetch();
-  // rate-limit signatures seen in the real case: HTTP 429 / "limited" in msg
-  if (d.code !== 0 && /limit/i.test(d.msg ?? "")) {
-    await sleep(700);
-    d = await doFetch();
+    if ((res.status === 401 || res.status === 403) && attempt === 0) {
+      cachedToken = null;
+      continue;
+    }
+    if ((res.status === 429 || /limit|too many/i.test(data.msg ?? "")) && attempt < 2) {
+      await sleep(retryDelay(res, attempt));
+      continue;
+    }
+    if (!res.ok && data.code === 0) {
+      throw new Error(`lark ${method} ${path} failed with HTTP ${res.status}`);
+    }
+    return data;
   }
-  return d;
+  throw new Error(`lark ${method} ${path} exhausted retries`);
 }
 
 export const LARK_DOMAIN = DOMAIN;

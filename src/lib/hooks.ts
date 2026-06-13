@@ -24,7 +24,8 @@ export function useFetch<T>(url: string) {
   }, [url])
 
   useEffect(() => {
-    fetchData()
+    const timer = setTimeout(() => void fetchData(), 0)
+    return () => clearTimeout(timer)
   }, [fetchData])
 
   return { data, loading, error, refetch: fetchData }

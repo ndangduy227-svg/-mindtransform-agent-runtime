@@ -39,8 +39,8 @@ export function checkCapability(key: CapabilityKey): CapabilityResult {
       return { key, available: ok, reason: ok ? "lark read available" : "no lark credential for api_render" };
     }
     case "publisher_cms": {
-      const ok = !!process.env.CMS_PUBLISH_TOKEN;
-      return { key, available: ok, reason: ok ? "CMS token present" : "missing CMS_PUBLISH_TOKEN" };
+      const ok = !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+      return { key, available: ok, reason: ok ? "Supabase CMS available" : "missing Supabase service credentials" };
     }
     case "publisher_static_git": {
       const ok = process.env.STATIC_PUBLISH_ENABLED === "1";

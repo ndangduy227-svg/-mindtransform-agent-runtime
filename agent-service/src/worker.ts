@@ -36,13 +36,17 @@ async function setRunStatus(job: WorkflowJob, status: string, output?: unknown) 
 }
 
 /** Dedupe by run_id + interrupt_id — re-delivery/resume never creates a second request. */
-async function upsertApprovalRequest(runId: string, interruptId: string, summary: string) {
+async function upsertApprovalRequest(
+  runId: string,
+  interruptId: string,
+  value: Record<string, unknown>,
+) {
   const { error } = await supabase.from("approval_requests").upsert(
     {
       run_id: runId,
       interrupt_id: interruptId,
       request_type: "workflow_approval",
-      payload: { runId, summary },
+      payload: { runId, ...value },
       status: "pending",
     },
     { onConflict: "run_id,interrupt_id" },
@@ -73,9 +77,9 @@ async function handle(job: WorkflowJob): Promise<void> {
         decision,
         nodeId: pendingNode,
       });
-      result = await graph.invoke(new Command({ resume: decision }), config);
-      // close out the approval node's status (it isn't instrumented — interrupt re-runs it)
+      // The decision is already durable before this job is enqueued.
       await nodeFinished(ctx, pendingNode, decision === "approve" ? "success" : "rejected", { decision });
+      result = await graph.invoke(new Command({ resume: decision }), config);
     } else {
       await setRunStatus(job, "running");
       await emitEvent(ctx, "run.started", { graph: job.graph, input: job.input });
@@ -85,6 +89,9 @@ async function handle(job: WorkflowJob): Promise<void> {
           runId: job.runId,
           projectId: job.projectId ?? "",
           vertical: (job.input?.vertical as string) ?? "Spa",
+          objective: (job.input?.objective as string) ?? "",
+          clientName: (job.input?.clientName as string) ?? "",
+          brief: (job.input?.brief as string) ?? "",
         },
         config,
       );
@@ -96,15 +103,19 @@ async function handle(job: WorkflowJob): Promise<void> {
       const intr = st.tasks?.flatMap((t: any) => t.interrupts ?? [])[0];
       const interruptId: string = intr?.ns?.[0] ?? intr?.id ?? `${job.runId}:interrupt`;
       const nodeId: string = st.next[0] ?? "approval";
+      const value =
+        intr?.value && typeof intr.value === "object"
+          ? (intr.value as Record<string, unknown>)
+          : { summary: String(intr?.value ?? "Workflow approval") };
       console.log(`[worker] run ${job.runId} paused for approval (${interruptId})`);
       await setRunStatus(job, "awaiting_approval");
-      await nodeFinished(ctx, nodeId, "awaiting_approval", { summary: intr?.value?.summary });
-      await upsertApprovalRequest(job.runId, interruptId, intr?.value?.summary ?? "Workflow approval");
+      await nodeFinished(ctx, nodeId, "awaiting_approval", value);
+      await supabase.from("workflow_runs").update({ current_node: nodeId }).eq("id", job.runId);
+      await upsertApprovalRequest(job.runId, interruptId, value);
       await emitEvent(ctx, "approval.requested", {
         nodeId,
         interruptId,
-        summary: intr?.value?.summary,
-        action: intr?.value?.action,
+        ...value,
       });
       return;
     }
@@ -120,6 +131,11 @@ async function handle(job: WorkflowJob): Promise<void> {
       blocked: result?.blocked ?? null,
       publishStatus: result?.publishApproved === false ? "draft" : result?.publicUrl ? "published" : null,
       publicUrl: result?.publicUrl || null,
+      baseUrl: result?.baseUrl || null,
+      appToken: result?.appToken || null,
+      evidence: result?.evidence ?? [],
+      docsArtifactUri: result?.docsArtifactUri || null,
+      blogArtifactUri: result?.blogArtifactUri || null,
       warnings: result?.warnings ?? [],
     };
     console.log(`[worker] run ${job.runId} ${finalStatus}${result?.blocked ? ` (blocked@${result.blocked.node})` : ""}`);

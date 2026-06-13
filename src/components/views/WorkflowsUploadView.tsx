@@ -4,8 +4,6 @@ import { useState, useCallback, type DragEvent } from "react"
 import { Upload, FileText, Trash2, Eye, EyeOff, Bot } from "lucide-react"
 import { Badge } from "@/components/Badge"
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 // ─── Types ──────────────────────────────────────────────────────
 interface WorkflowFile {
   id: string

@@ -12,34 +12,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json().catch(() => ({}))
     const decision = body.decision === "reject" ? "reject" : "approve"
 
-    // 1. record decision
-    const { error: decErr } = await supabase.from("approval_decisions").insert({
-      approval_request_id: id,
-      decision,
-      actor: body.actor || "Founder",
-      reason: body.reason || null,
+    // Decide and close atomically. The database derives run_id from the
+    // approval request, so a client cannot resume a different workflow.
+    const { data: decided, error: decErr } = await supabase.rpc("decide_workflow_approval", {
+      p_approval_request_id: id,
+      p_decision: decision,
+      p_actor: body.actor || "Founder",
+      p_reason: body.reason || null,
     })
-    if (decErr) throw decErr
-
-    // 2. close the request
-    await supabase.from("approval_requests").update({ status: decision }).eq("id", id)
-
-    // 3. resume the engine workflow from its checkpoint
-    let engine: unknown = null
-    if (body.runId) {
-      try {
-        const res = await fetch(`${ENGINE_URL}/approve`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": ENGINE_KEY },
-          body: JSON.stringify({ runId: body.runId, decision }),
-        })
-        engine = await res.json()
-      } catch {
-        engine = { warning: `engine unreachable at ${ENGINE_URL} — decision saved, not resumed` }
-      }
+    if (decErr) {
+      const status = /already decided|not found/i.test(decErr.message) ? 409 : 500
+      return NextResponse.json({ error: decErr.message }, { status })
+    }
+    const approval = decided?.[0]
+    if (!approval?.run_id) {
+      return NextResponse.json({ error: "approval did not return a workflow run" }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, decision, engine })
+    // Resume only after the durable decision exists.
+    let engine: unknown = null
+    try {
+      const res = await fetch(`${ENGINE_URL}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": ENGINE_KEY },
+        body: JSON.stringify({ runId: approval.run_id, decision }),
+      })
+      engine = await res.json()
+      if (!res.ok) {
+        await supabase
+          .from("approval_requests")
+          .update({ status: "resume_failed" })
+          .eq("id", id)
+        return NextResponse.json(
+          { error: "decision saved but engine resume failed", decision, engine },
+          { status: 502 },
+        )
+      }
+    } catch {
+      await supabase
+        .from("approval_requests")
+        .update({ status: "resume_failed" })
+        .eq("id", id)
+      return NextResponse.json(
+        { error: `decision saved but engine unreachable at ${ENGINE_URL}`, decision },
+        { status: 502 },
+      )
+    }
+
+    return NextResponse.json({ ok: true, decision, runId: approval.run_id, engine })
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 })
   }

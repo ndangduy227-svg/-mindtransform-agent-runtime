@@ -1,92 +1,101 @@
-# Mindtransform Agent Platform
+# Mindtransform Agent Runtime
 
-Monorepo for the Mind Agent Platform — internal AI agents + the public Mind AI
-Consultant. Two deployables sharing one Supabase database and one Neo4j
-knowledge graph.
+Runtime cho **The Mind Flow** (`wf_01_the_mind_flow`): từ project chat, research,
+plan, approval, build Lark, evidence, tài liệu, blog và publish.
 
-> Architecture: `12_Agents/08_Agent_Runtime_Tool/Agents_Architecture_v3_GraphRAG.md`
-> Canonical workflow: **The Mind Flow** (`wf_01_the_mind_flow`) —
-> `12_Agents/01_Workflows/WF_01_The_Mind_Flow.md`
-> QC baseline: `12_Agents/08_Agent_Runtime_Tool/HANDOFF_Oto_Hop_Nhat_Runtime_QC_2026-06-11.md`
+## Kiến trúc
 
-## Architecture (v3)
-
-```
-┌─────────────────────────────┐   HTTP    ┌──────────────────────────────┐
-│ Next.js (this root) ─ Vercel │ ───────►  │ agent-service/ ─ Railway      │
-│ = CONTROL PLANE              │ /run      │ = ENGINE (always-on)          │
-│  • Agents / Workflows / Chat │ /consult  │  • LangGraph.js workflows     │
-│  • Runs + Approvals          │ /approve  │  • pg-boss queue + worker     │
-│  • Costs dashboard           │ /status   │  • GraphRAG (Neo4j) layer     │
-└──────────────┬───────────────┘ ◄───────  │  • model router + cost log    │
-               │                            └───────────────┬──────────────┘
-               └────────► Supabase Postgres ◄───────────────┘
-                                       │
-                                  Neo4j Aura
+```text
+Next.js Control Plane (:3000)
+  - Projects / Chat / Graph / Outputs / Usage
+  - Approval API và trang blog public
+              |
+              v
+Agent Service (:8080)
+  - LangGraph.js + Postgres checkpoint
+  - pg-boss API/worker
+  - GraphRAG relevance gate
+  - Lark, evidence và publisher adapters
+              |
+              v
+Supabase Postgres + Neo4j Aura + Lark
 ```
 
-## Status — honest, per QC verification levels
+## Trạng thái đã kiểm chứng
 
-Levels: **orchestration verified** (core loop proven) · **connector
-implemented** (code exists, not proven live) · **connector live verified**
-(proven against the real external system) · **production ready**.
+- The Mind Flow có 13 node và 2 approval gate.
+- Mỗi project pin một workflow; objective và user chat được đưa vào run input.
+- Assistant output không được đưa ngược vào brief.
+- Approval decision được ghi atomically trước khi resume graph.
+- GraphRAG có domain relevance gate để chặn context chéo ngành.
+- Lark adapter hỗ trợ Base, table, field, linked record, sample record, view,
+  form, dashboard, dashboard block và Lark Doc.
+- Lark writes có registry, receipt, idempotency theo từng workflow run và read-back verification.
+- Evidence `api_render` đọc dữ liệu thật từ Lark và ghi disclosure.
+- Publisher nội bộ ghi `blog_posts`, phục vụ tại `/blog/[slug]`, sau đó verify URL.
+- UI hiển thị graph state, approval, node inspector, outputs, receipts và token/cost.
 
-| Piece | Level | Evidence |
-|---|---|---|
-| Queue → graph → checkpoint → interrupt → resume | orchestration verified | live runs + 15 automated tests |
-| Approval semantics (approve / **reject** / duplicate) | orchestration verified | tests + live reject run `45409d2c` ended `rejected`, no marketing |
-| Notes reducer (no duplication) | orchestration verified | automated test |
-| Queue retry propagation (retryable vs fail-fast) | orchestration verified | error-classifier tests |
-| Engine API auth (x-api-key) + Zod validation | orchestration verified | 401/422 verified live |
-| RLS lockdown (no anon access to runtime tables) | live verified | anon read returns empty post-0003 |
-| Migrations 0001–0004 (runs, projects, events, receipts tables) | live verified | applied to live DB |
-| **Projects model**: New Chat → project + workflow pin + session | live verified | project `1633f3a9` created via UI API, cancel creates nothing |
-| **Project Workspace** (Chat / Graph / Outputs / Usage tabs) | live verified | chat through engine persisted; run b92eec1b + 814810ff followed live |
-| **Runtime event stream** (§10 schema) + per-node runs | live verified | run.queued→run.started→node.*→approval.requested→run.completed |
-| **Approval from workspace UI** (approve/reject buttons) | live verified | round-2 run approved via `/api/approvals` → resumed → done |
-| **Usage accounting** per project, chat vs workflow, by node | live verified | provider-reported tokens; chat=1/workflow=6 split on smoke project |
-| **The Mind Flow full graph** (13 nodes, 2 gates, brief §6) | orchestration verified | 16 tests + live run `5688926f`: paused scope_approval → approve → **blocked@lark_build** |
-| **Blocked-honesty (§7)**: missing tool ⇒ run `blocked`, blocker surfaced | live verified | output.blocked = "missing LARK_APP_ID / LARK_APP_SECRET"; node run status `blocked` |
-| Scope reject → plan revision loop (cap 1) → rejected | orchestration verified | automated test |
-| Publish reject → draft_complete (output stays Draft) | orchestration verified | automated test |
-| GraphRAG ingest + multi-hop query (Neo4j Aura) | live verified | sample-doc smoke; **grounding relevance gate NOT built** (known cross-domain leak) |
-| Model router + real cost logging → `model_calls` | live verified | Groq usage rows with provider-reported tokens |
-| **Lark adapter** (find→create→verify→receipt, idempotent registry) | **connector live verified** | run `da3d0ef5` built real base `KYScbdo5…` — 4 tables + records + 2 views + 2 forms; verify read-back OK; 10 receipts |
-| **Evidence api_render** (real records + disclosure) | connector live verified | evidence artifacts saved with explicit disclosure |
-| Idempotency / resource registry / receipts | live verified | external_resources + side_effect_receipts populated by lark adapter |
-| Publisher strategy router (cms→static_git→pause) | **contract only** | tools/publisher.ts — next |
-| Post-publish verification gate (QC §16) | **not built** | next |
-| Engine deploy on Railway | **not done** | runs locally |
+Live QC ngày 12/06/2026:
 
-**The Mind Flow business workflow is NOT end-to-end yet** — research/plan run
-on real models, but build/evidence/publish are stubs. See the build brief and
-QC handoff for the P1/P2 backlog (execution harness, real tools, projects UI).
+- Project: `Ô Tô Hợp Nhất - The Mind Flow QC`
+- Run: `bcbfc6d6-fbee-4d9a-8939-d7fc7df7b283`
+- Trạng thái: `awaiting_approval` tại `scope_approval`
+- GraphRAG Spa context: `relevance=0.00 rejected`
+- Chưa có Lark side effect trước khi người dùng approve.
+- Migration `0005` đã apply; 3 approval decision trùng cũ được lưu vào bảng archive.
 
-## Repo layout
-
-```
-src/                  Next.js Control Plane (views, API routes)
-supabase/migrations/  0001 schema · 0002 (superseded) · 0003 runs + RLS lockdown
-agent-service/        ENGINE — see agent-service/README.md
-```
-
-## Quick start
+## Chạy local
 
 ```bash
-# Control Plane (needs SUPABASE_SERVICE_ROLE_KEY + AGENT_SERVICE_KEY in .env.local)
-npm install && npm run dev          # http://localhost:3000
+# Control Plane
+npm ci
+npm run dev
 
-# Engine (fill agent-service/.env: Supabase, Neo4j, model keys, ENGINE_API_KEY)
-cd agent-service && npm install
-npm test                            # 15 tests: approval semantics, retry classifier
-npx tsx --env-file=.env src/graphrag/setup.ts   # one-shot Neo4j schema
-npm run dev:server                  # API :8080 (x-api-key required on /run /approve)
+# Engine, mở hai terminal
+cd agent-service
+npm ci
+npm run dev:server
 npm run dev:worker
 ```
 
-## Next (from The Mind Flow build brief, §14 order)
+Biến môi trường mẫu nằm tại `.env.example` và `agent-service/.env.example`.
+`AGENT_SERVICE_KEY` phải khớp `ENGINE_API_KEY`.
 
-P0 ✅ → projects model ✅ → events/usage ✅ → Workspace UI ✅ → Step 3 full
-graph ✅ → **Step 4 Lark+evidence adapters ✅ (live verified)** → next:
-publisher (cms/static_git) + post-publish verification gate (QC §16) +
-GraphRAG relevance gate → Railway deploy.
+## Kiểm thử
+
+```bash
+# Control Plane
+npm run lint
+npm run build
+
+# Engine
+cd agent-service
+npm run typecheck
+npm test
+```
+
+Baseline hiện tại: `20/20` agent tests, TypeScript clean, Next.js build clean,
+ESLint clean.
+
+## Luồng Ô Tô Hợp Nhất
+
+Golden spec hiện tại yêu cầu:
+
+- 9 bảng nghiệp vụ.
+- 7 views.
+- 5 forms.
+- Dashboard BOD gồm 5 blocks.
+- Sales pipeline nối đơn hàng, xe tồn, garage, giữ chỗ vật tư và QC bàn giao.
+- Không writeback KiotViet và không sửa Base cũ.
+
+Sau khi duyệt scope trên UI, worker mới được phép tạo tài nguyên Lark. Sau build
+và verify, graph dừng lần hai tại `publish_approval`; chỉ khi duyệt lần hai mới
+publish blog public.
+
+## Cấu trúc repo
+
+```text
+src/                  Next.js Control Plane
+agent-service/        LangGraph engine, worker và adapters
+supabase/migrations/  Database schema và integrity migrations
+```

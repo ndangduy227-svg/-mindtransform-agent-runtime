@@ -32,6 +32,7 @@ vi.mock("../src/models/router.js", () => ({
 vi.mock("../src/graphrag/query.js", () => ({
   graphQuery: vi.fn(async () => ({ chunks: [], entities: [], relations: [] })),
   renderContext: vi.fn(() => ""),
+  contextRelevance: vi.fn(() => 0),
 }));
 
 vi.mock("../src/db/supabase.js", () => {
@@ -59,12 +60,20 @@ vi.mock("../src/tools/lark.js", () => ({
     receipts: [{ logicalKey: "t1", idempotencyKey: "k1", kind: "lark_table", externalId: "tblX", status: "verified" }],
   })),
   verifyLarkResources: vi.fn(async () => ({ status: "success", verified: 2, missing: [] })),
+  createLarkDocument: vi.fn(async () => ({
+    logicalKey: "setup_doc",
+    idempotencyKey: "doc-k1",
+    kind: "lark_doc",
+    externalId: "docX",
+    externalUrl: "https://lark.example/docx/x",
+    status: "verified",
+  })),
 }));
 vi.mock("../src/tools/evidence.js", () => ({
   captureEvidence: vi.fn(async () => ({
     status: "success",
     strategy: "api_render",
-    items: [{ type: "api_render", name: "evidence_t1", disclosure: "rendered from API data" }],
+    items: [{ type: "api_render", name: "evidence_t1", uri: "artifact:e1", disclosure: "rendered from API data" }],
   })),
 }));
 vi.mock("../src/tools/publisher.js", () => ({
@@ -83,7 +92,14 @@ const cfg = (id: string) => ({ configurable: { thread_id: id } });
 const INPUT = { tenantId: "tenant_0", runId: "r", projectId: "p", vertical: "Spa", objective: "test" };
 
 describe("The Mind Flow (Step 3) — gates, revision, blocked, draft", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "<html>Spa</html>",
+    })));
+  });
 
   it("pauses at scope_approval; nothing past the gate runs early", async () => {
     const g = await buildTheMindFlow();

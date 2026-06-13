@@ -121,7 +121,9 @@ export function CampaignChatView() {
   }, [])
 
   useEffect(() => {
-    if (selectedId) loadDetail(selectedId)
+    if (!selectedId) return
+    const timer = setTimeout(() => void loadDetail(selectedId), 0)
+    return () => clearTimeout(timer)
   }, [selectedId, loadDetail])
 
   useEffect(() => {
@@ -130,7 +132,9 @@ export function CampaignChatView() {
 
   // Auto-select first campaign
   useEffect(() => {
-    if (campaigns?.length && !selectedId) setSelectedId(campaigns[0].id)
+    if (!campaigns?.length || selectedId) return
+    const timer = setTimeout(() => setSelectedId(campaigns[0].id), 0)
+    return () => clearTimeout(timer)
   }, [campaigns, selectedId])
 
   const sendMessage = async () => {

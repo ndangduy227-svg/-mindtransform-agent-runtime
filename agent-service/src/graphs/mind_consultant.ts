@@ -1,5 +1,6 @@
 import { callModel } from "../models/router.js";
 import { graphQuery, renderContext } from "../graphrag/query.js";
+import { contextRelevance } from "../graphrag/relevance.js";
 
 /**
  * Mind AI Consultant — SYNC chat (v3 §3.1).
@@ -21,14 +22,21 @@ export async function runConsultant(
   message: string,
   tenantId: string,
   history: string[] = [],
-  meta: { projectId?: string; sessionId?: string } = {},
+  meta: { projectId?: string; sessionId?: string; projectContext?: string } = {},
 ): Promise<ConsultResult> {
   // 1 GraphRAG read for relevant industry/pain knowledge
-  const ctx = await graphQuery(message, tenantId);
-  const contextText = renderContext(ctx);
+  const authoritativeContext = meta.projectContext?.trim() ?? "";
+  const query = [authoritativeContext, message].filter(Boolean).join("\n");
+  const ctx = await graphQuery(query, tenantId);
+  const candidateContext = renderContext(ctx);
+  const relevance = contextRelevance(query, candidateContext);
+  const contextText = relevance >= 0.18 ? candidateContext : "";
 
   const prompt = [
     ROLE,
+    authoritativeContext
+      ? `# Brief dự án (nguồn sự thật, ưu tiên cao nhất)\n${authoritativeContext}\nKhông được suy diễn sang ngành khác.`
+      : "",
     contextText ? `# Tri thức liên quan\n${contextText}` : "",
     history.length ? `# Lịch sử\n${history.join("\n")}` : "",
     `# Khách\n${message}`,

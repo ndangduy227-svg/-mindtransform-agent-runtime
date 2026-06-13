@@ -1,10 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type FormEvent } from "react"
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react"
 import { Send, Bot, User, Loader2, AtSign, FileText, X, MessageCircle } from "lucide-react"
 import { Badge } from "@/components/Badge"
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 // ─── Types ──────────────────────────────────────────────────────
 interface ChatMessage {

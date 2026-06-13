@@ -39,6 +39,7 @@ const ConsultBody = z.object({
   tenantId: z.string().max(64).optional(),
   projectId: z.string().uuid().optional(),
   sessionId: z.string().uuid().optional(),
+  projectContext: z.string().max(30000).optional(),
 });
 
 const RunBody = z.object({
@@ -64,6 +65,7 @@ app.post("/consult", async (c) => {
   const result = await runConsultant(parsed.data.message, tenant.tenantId, parsed.data.history, {
     projectId: parsed.data.projectId,
     sessionId: parsed.data.sessionId,
+    projectContext: parsed.data.projectContext,
   });
   return c.json(result);
 });

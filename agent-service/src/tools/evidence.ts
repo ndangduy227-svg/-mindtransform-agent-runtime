@@ -47,7 +47,7 @@ export async function captureEvidence(ctx: Ctx): Promise<EvidenceResult> {
     "Evidence rendered from real Lark API data (api_render) — not a live UI screenshot.";
   const items: EvidenceItem[] = [];
 
-  const tables = ctx.receipts.filter(r => r.kind === "lark_table" && r.externalId).slice(0, 3);
+  const tables = ctx.receipts.filter(r => r.kind === "lark_table" && r.externalId).slice(0, 6);
   if (!tables.length) return { status: "blocked", reason: "no built tables to render evidence from" };
 
   for (const t of tables) {
@@ -56,24 +56,28 @@ export async function captureEvidence(ctx: Ctx): Promise<EvidenceResult> {
     );
     if (r.code !== 0) continue;
     const sample = (r.data.items ?? []).map(x => x.fields);
-    const { data: art, error } = await supabase
+    if (!sample.length) continue;
+    const artifactId = crypto.randomUUID();
+    const artifactUri = `artifact:${artifactId}`;
+    const { error } = await supabase
       .from("artifacts")
       .insert({
+        id: artifactId,
         project_id: ctx.projectId,
         workflow_run_id: ctx.runId,
         kind: "evidence_api_render",
         name: `evidence_${t.logicalKey}`,
+        uri: artifactUri,
         meta: { tableId: t.externalId, total: r.data.total ?? sample.length, sample, disclosure: DISCLOSURE },
-      })
-      .select("id")
-      .single();
-    if (error) console.error(`[evidence] artifact save failed: ${error.message}`);
+      });
+    if (error) return { status: "blocked", reason: `evidence artifact save failed: ${error.message}` };
     items.push({
       type: "api_render",
       name: `evidence_${t.logicalKey}`,
-      uri: art?.id ? `artifact:${art.id}` : undefined,
+      uri: artifactUri,
       disclosure: DISCLOSURE,
     });
+    if (items.length >= 3) break;
   }
 
   if (!items.length) return { status: "blocked", reason: "api_render produced no evidence items" };

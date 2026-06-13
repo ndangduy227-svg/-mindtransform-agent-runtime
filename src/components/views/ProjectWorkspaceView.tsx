@@ -16,7 +16,7 @@ interface Workspace {
   latestRunId: string | null
   nodeRuns: { node_id: string; status: string; retry_count: number; output_summary: any; error: any; started_at: string; finished_at: string | null }[]
   events: { type: string; payload: any; created_at: string }[]
-  pendingApprovals: { id: string; run_id: string; payload: any; created_at: string }[]
+  pendingApprovals: { id: string; run_id: string; payload: any; status: string; created_at: string }[]
   usage: {
     total: { calls: number; tokens: number; cost: number }
     chat: { calls: number; tokens: number; cost: number }
@@ -24,6 +24,9 @@ interface Workspace {
     byNode: { node: string; calls: number; tokens: number; cost: number }[]
     recent: any[]
   }
+  artifacts: any[]
+  resources: any[]
+  receipts: any[]
 }
 
 // The Mind Flow v1 — display order (brief §6; keep in sync with engine MIND_FLOW_NODES)
@@ -40,6 +43,7 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
   const [tab, setTab] = useState<"chat" | "graph" | "outputs" | "usage">("chat")
   const [msg, setMsg] = useState("")
   const [sending, setSending] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
   const [inspect, setInspect] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -48,7 +52,10 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
     if (res.ok) setWs(await res.json())
   }, [projectId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const timer = setTimeout(() => void load(), 0)
+    return () => clearTimeout(timer)
+  }, [load])
   // poll while a run is active so Graph/Approval update live
   useEffect(() => {
     const active = ws?.runs?.[0]?.status === "running" || ws?.runs?.[0]?.status === "awaiting_approval"
@@ -75,18 +82,20 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
     await fetch(`/api/projects/${projectId}/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vertical: ws?.project.industry || ws?.project.name }),
+      body: JSON.stringify({}),
     })
     await load()
     setTab("graph")
   }
 
-  async function decide(approvalId: string, runId: string, decision: "approve" | "reject") {
-    await fetch(`/api/approvals/${approvalId}`, {
+  async function decide(approvalId: string, decision: "approve" | "reject") {
+    const res = await fetch(`/api/approvals/${approvalId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, runId }),
+      body: JSON.stringify({ decision }),
     })
+    const data = await res.json().catch(() => ({}))
+    setApprovalError(res.ok ? null : data.error ?? "Không thể resume workflow")
     await load()
   }
 
@@ -116,15 +125,26 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
       {ws.pendingApprovals.map(a => (
         <div key={a.id} className="border border-amber/40 bg-amber-soft rounded-[var(--radius)] p-4 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <strong className="block text-sm">⏸ Chờ duyệt: {a.payload?.summary ?? "Workflow approval"}</strong>
-            <span className="text-xs text-muted">Graph đang pause — chỉ chạy tiếp khi bạn quyết định.</span>
+            <strong className="block text-sm">
+              ⏸ {a.status === "resume_failed" ? "Resume lỗi, cần thử lại" : "Chờ duyệt"}: {a.payload?.summary ?? "Workflow approval"}
+            </strong>
+            <span className="text-xs text-muted">
+              {a.status === "resume_failed"
+                ? "Quyết định đã được lưu nhưng engine chưa nhận được; bấm lại cùng quyết định để retry."
+                : "Graph đang pause — chỉ chạy tiếp khi bạn quyết định."}
+            </span>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => decide(a.id, a.run_id, "approve")} className="h-[36px] px-4 rounded-[var(--radius)] bg-green-soft text-green border border-green/30 inline-flex items-center gap-1.5 text-sm cursor-pointer"><Check size={15} /> Approve</button>
-            <button onClick={() => decide(a.id, a.run_id, "reject")} className="h-[36px] px-4 rounded-[var(--radius)] bg-red-soft text-red border border-red/30 inline-flex items-center gap-1.5 text-sm cursor-pointer"><X size={15} /> Reject</button>
+            <button onClick={() => decide(a.id, "approve")} className="h-[36px] px-4 rounded-[var(--radius)] bg-green-soft text-green border border-green/30 inline-flex items-center gap-1.5 text-sm cursor-pointer"><Check size={15} /> Approve</button>
+            <button onClick={() => decide(a.id, "reject")} className="h-[36px] px-4 rounded-[var(--radius)] bg-red-soft text-red border border-red/30 inline-flex items-center gap-1.5 text-sm cursor-pointer"><X size={15} /> Reject</button>
           </div>
         </div>
       ))}
+      {approvalError && (
+        <div className="border border-red/30 bg-red-soft rounded-[var(--radius)] p-3 text-sm text-red">
+          {approvalError}
+        </div>
+      )}
 
       {/* tabs */}
       <div className="flex gap-1 border-b border-line">
@@ -224,6 +244,25 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
       {/* OUTPUTS */}
       {tab === "outputs" && (
         <section className="border border-line rounded-[var(--radius)] bg-surface p-4 grid gap-3">
+          {ws.resources?.filter(r => r.external_url).map((r, i) => (
+            <a
+              key={`${r.logical_key}-${i}`}
+              href={r.external_url}
+              target="_blank"
+              rel="noreferrer"
+              className="border border-line rounded-[var(--radius)] p-4 bg-[#fbfcfb] text-sm no-underline text-ink hover:border-[#17211b]"
+            >
+              <strong className="block">{r.kind}: {r.logical_key}</strong>
+              <span className="text-muted break-all">{r.external_url}</span>
+            </a>
+          ))}
+          {ws.artifacts?.map((a, i) => (
+            <div key={`${a.id}-${i}`} className="border border-line rounded-[var(--radius)] p-4 bg-[#fbfcfb] text-sm">
+              <strong className="block">{a.name}</strong>
+              <span className="text-muted">{a.kind} · {a.uri || "không có URI"}</span>
+              {a.meta?.disclosure && <p className="text-xs text-muted mb-0">{a.meta.disclosure}</p>}
+            </div>
+          ))}
           {latestRun?.output?.blocked && (
             <div className="border border-red/30 bg-red-soft rounded-[var(--radius)] p-4 text-sm">
               <strong className="block mb-1">🚫 Run BLOCKED tại node: {latestRun.output.blocked.node}</strong>
@@ -240,7 +279,22 @@ export function ProjectWorkspaceView({ projectId, onBack }: { projectId: string;
               <div key={i} className="border border-line rounded-[var(--radius)] p-4 bg-[#fbfcfb] text-sm whitespace-pre-wrap leading-relaxed">{n}</div>
             ))
           ) : (
-            <p className="text-muted text-sm m-0">Chưa có output. Run xong (hoặc bị reject) sẽ hiển thị tại đây. Lưu ý: build/evidence/publish hiện là stub — chưa phải deliverable thật.</p>
+            !ws.resources?.length && !ws.artifacts?.length && (
+              <p className="text-muted text-sm m-0">Chưa có output được persist cho run này.</p>
+            )
+          )}
+          {!!ws.receipts?.length && (
+            <details className="border border-line rounded-[var(--radius)] p-3">
+              <summary className="cursor-pointer text-sm font-medium">Receipts ({ws.receipts.length})</summary>
+              <div className="grid gap-2 mt-3">
+                {ws.receipts.map((r, i) => (
+                  <div key={i} className="text-xs flex items-start justify-between gap-3">
+                    <code>{r.operation}</code>
+                    <Badge color={statusColor(r.status)}>{r.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </section>
       )}

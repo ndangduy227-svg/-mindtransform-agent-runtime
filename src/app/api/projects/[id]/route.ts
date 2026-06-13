@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const sessionId = sessions?.[0]?.id ?? null
     const latestRunId = runs?.[0]?.id ?? null
 
-    const [msgs, nodeRuns, events, approvals, calls] = await Promise.all([
+    const [msgs, nodeRuns, events, approvals, calls, artifacts, resources, receipts] = await Promise.all([
       sessionId
         ? supabase.from("session_messages").select("id, role, content, created_at").eq("session_id", sessionId).order("created_at").limit(200)
         : Promise.resolve({ data: [] }),
@@ -29,8 +29,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       latestRunId
         ? supabase.from("workflow_run_events").select("type, payload, created_at").eq("workflow_run_id", latestRunId).order("created_at").limit(200)
         : Promise.resolve({ data: [] }),
-      supabase.from("approval_requests").select("id, run_id, interrupt_id, payload, status, created_at").eq("status", "pending").in("run_id", (runs ?? []).map(r => r.id)),
+      supabase.from("approval_requests").select("id, run_id, interrupt_id, payload, status, created_at").in("status", ["pending", "resume_failed"]).in("run_id", (runs ?? []).map(r => r.id)),
       supabase.from("model_calls").select("provider, model, prompt_tokens, completion_tokens, cost_usd, source, node_id, created_at").eq("project_id", id).order("created_at", { ascending: false }).limit(500),
+      latestRunId
+        ? supabase.from("artifacts").select("id, kind, name, uri, meta, created_at").eq("workflow_run_id", latestRunId).order("created_at")
+        : Promise.resolve({ data: [] }),
+      supabase.from("external_resources").select("logical_key, kind, external_id, external_url, receipt, created_at").eq("project_id", id).order("created_at"),
+      latestRunId
+        ? supabase.from("side_effect_receipts").select("operation, status, idempotency_key, payload, created_at").eq("workflow_run_id", latestRunId).order("created_at")
+        : Promise.resolve({ data: [] }),
     ])
 
     const callRows = calls.data ?? []
@@ -58,6 +65,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       nodeRuns: nodeRuns.data ?? [],
       events: events.data ?? [],
       pendingApprovals: approvals.data ?? [],
+      artifacts: artifacts.data ?? [],
+      resources: resources.data ?? [],
+      receipts: receipts.data ?? [],
       usage: {
         total: agg(callRows),
         chat: agg(callRows.filter(c => c.source === "chat")),

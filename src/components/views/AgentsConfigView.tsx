@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, type DragEvent } from "react"
-import { Upload, Bot, ChevronRight, Trash2, Plus, FileText, Code, Wrench, X } from "lucide-react"
+import { Upload, Bot, ChevronRight, Trash2, Plus, FileText, Code, Wrench } from "lucide-react"
 import { Badge } from "@/components/Badge"
 import { useFetch } from "@/lib/hooks"
 
@@ -83,7 +83,8 @@ export function AgentsConfigView() {
 
   // Sync from DB on load
   useEffect(() => {
-    if (dbAgents && dbAgents.length > 0 && agents.length === 0) {
+    if (!dbAgents || dbAgents.length === 0 || agents.length > 0) return
+    const timer = setTimeout(() => {
       setAgents(dbAgents.map((a: any) => ({
         id: a.id,
         name: a.name,
@@ -95,7 +96,8 @@ export function AgentsConfigView() {
         tools: [],
         raw_role_md: "",
       })))
-    }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [dbAgents, agents.length])
 
   const selected = agents.find(a => a.id === selectedId) || null
