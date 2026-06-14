@@ -37,10 +37,18 @@ vi.mock("../src/graphrag/query.js", () => ({
 
 vi.mock("../src/db/supabase.js", () => {
   const result = Promise.resolve({ error: null, data: null });
-  const chain: any = new Proxy(() => chain, {
-    get: (_t, prop) => (prop === "then" ? result.then.bind(result) : () => chain),
-    apply: () => chain,
-  });
+  type Chain = {
+    (...args: unknown[]): Chain;
+    then: typeof result.then;
+  };
+  function createChain(): Chain {
+    const proxy: Chain = new Proxy((() => proxy) as Chain, {
+      get: (_t, prop) => (prop === "then" ? result.then.bind(result) : () => proxy),
+      apply: () => proxy,
+    });
+    return proxy;
+  }
+  const chain = createChain();
   return { supabase: { from: () => chain }, DATABASE_URL: "" };
 });
 

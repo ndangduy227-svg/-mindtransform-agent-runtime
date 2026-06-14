@@ -100,7 +100,10 @@ async function handle(job: WorkflowJob): Promise<void> {
     // Paused? — pending next-nodes on the checkpoint mean an interrupt fired.
     const st = await graph.getState(config);
     if (st.next?.length) {
-      const intr = st.tasks?.flatMap((t: any) => t.interrupts ?? [])[0];
+      const tasks = (st.tasks ?? []) as Array<{
+        interrupts?: Array<{ ns?: string[]; id?: string; value?: unknown }>;
+      }>;
+      const intr = tasks.flatMap((task) => task.interrupts ?? [])[0];
       const interruptId: string = intr?.ns?.[0] ?? intr?.id ?? `${job.runId}:interrupt`;
       const nodeId: string = st.next[0] ?? "approval";
       const value =

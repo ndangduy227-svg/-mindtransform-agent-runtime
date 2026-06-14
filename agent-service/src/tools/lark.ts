@@ -489,9 +489,16 @@ export async function verifyLarkResources(
       continue;
     }
     const endpoint = item.kind === "lark_form" ? "forms" : "views";
-    const live = await larkFetch<any>(`/open-apis/base/v3/bases/${appToken}/tables/${tableId}/${endpoint}`);
-    const list = live.data?.forms ?? live.data?.views ?? [];
-    if (live.code === 0 && list.some((entry: any) => (entry.id ?? entry.view_id) === item.externalId)) verified++;
+    const live = await larkFetch<{
+      forms?: Array<{ id?: string; form_id?: string }>;
+      views?: Array<{ id?: string; view_id?: string }>;
+    }>(`/open-apis/base/v3/bases/${appToken}/tables/${tableId}/${endpoint}`);
+    const list: Array<{ id?: string; form_id?: string; view_id?: string }> =
+      live.data?.forms ?? live.data?.views ?? [];
+    if (
+      live.code === 0 &&
+      list.some((entry) => (entry.id ?? entry.form_id ?? entry.view_id) === item.externalId)
+    ) verified++;
     else missing.push(`${item.kind} ${item.logicalKey}`);
   }
 

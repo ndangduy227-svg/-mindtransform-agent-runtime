@@ -100,7 +100,7 @@ agent-service/        LangGraph engine, worker và adapters
 supabase/migrations/  Database schema và integrity migrations
 ```
 
-## Bàn giao chuyển máy
+## Chuyển máy tạm thời
 
-Trạng thái GitHub, credential boundary, cách dựng lại máy và run đang chờ duyệt
-được ghi tại [`MACHINE_TRANSFER.md`](MACHINE_TRANSFER.md).
+Trong giai đoạn chuyển thiết bị, đọc [`MACHINE_TRANSFER.md`](MACHINE_TRANSFER.md).
+Sau khi máy mới được xác minh, file này phải được xóa bằng một cleanup commit.

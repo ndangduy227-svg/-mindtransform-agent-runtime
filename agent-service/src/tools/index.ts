@@ -15,6 +15,14 @@ export interface Tool<A = unknown> {
   run: (args: A, ctx: { tenantId: string }) => Promise<{ ok: boolean; output: string }>;
 }
 
+function eraseToolArgs<A>(tool: Tool<A>): Tool<unknown> {
+  return {
+    ...tool,
+    schema: tool.schema as z.ZodType<unknown>,
+    run: (args, ctx) => tool.run(args as A, ctx),
+  };
+}
+
 // --- web search (MCP) — read ---
 const webSearch: Tool<{ query: string }> = {
   name: "web_search",
@@ -46,10 +54,10 @@ const screenshot: Tool<{ url: string }> = {
   },
 };
 
-export const TOOLS: Record<string, Tool<any>> = {
-  [webSearch.name]: webSearch,
-  [larkTemplate.name]: larkTemplate,
-  [screenshot.name]: screenshot,
+export const TOOLS: Record<string, Tool<unknown>> = {
+  [webSearch.name]: eraseToolArgs(webSearch),
+  [larkTemplate.name]: eraseToolArgs(larkTemplate),
+  [screenshot.name]: eraseToolArgs(screenshot),
 };
 
 /** Validate → permission/allowlist check → run. Returns harness result. */

@@ -26,6 +26,25 @@ interface CallResult {
   costUsd: number;
 }
 
+interface GroqResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+interface GeminiResponse {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+}
+
+interface AnthropicResponse {
+  content?: Array<{ text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+interface EmbeddingResponse {
+  embedding?: { values?: number[] };
+}
+
 // USD per 1M tokens (in/out) — keep in sync with control-plane pricing.
 const PRICE: Record<Provider, { in: number; out: number }> = {
   groq: { in: 0.05, out: 0.08 },
@@ -101,7 +120,7 @@ async function callGroq(prompt: string, system: string | undefined, maxTokens: n
     body: JSON.stringify({ model: MODEL.groq, messages, temperature: 0.7, max_tokens: maxTokens }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
-  const d = (await res.json()) as any;
+  const d = (await res.json()) as GroqResponse;
   return {
     text: d.choices?.[0]?.message?.content ?? "",
     tokensIn: d.usage?.prompt_tokens ?? 0,
@@ -123,7 +142,7 @@ async function callGemini(prompt: string, system: string | undefined, maxTokens:
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
   );
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
-  const d = (await res.json()) as any;
+  const d = (await res.json()) as GeminiResponse;
   return {
     text: d.candidates?.[0]?.content?.parts?.[0]?.text ?? "",
     tokensIn: d.usageMetadata?.promptTokenCount ?? 0,
@@ -150,7 +169,7 @@ async function callAnthropic(prompt: string, system: string | undefined, maxToke
     }),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
-  const d = (await res.json()) as any;
+  const d = (await res.json()) as AnthropicResponse;
   return {
     text: d.content?.[0]?.text ?? "",
     tokensIn: d.usage?.input_tokens ?? 0,
@@ -175,7 +194,7 @@ export async function embed(text: string): Promise<number[]> {
     },
   );
   if (!res.ok) throw new Error(`Embedding ${res.status}: ${await res.text()}`);
-  const d = (await res.json()) as any;
+  const d = (await res.json()) as EmbeddingResponse;
   return d.embedding?.values ?? new Array(768).fill(0);
 }
 

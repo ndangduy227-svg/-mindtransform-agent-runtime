@@ -9,6 +9,13 @@ const DOMAIN = process.env.LARK_DOMAIN || "https://open.larksuite.com";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
+interface TenantTokenResponse {
+  code?: number;
+  msg?: string;
+  tenant_access_token?: string;
+  expire?: number;
+}
+
 export async function getTenantToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
   const res = await fetch(`${DOMAIN}/open-apis/auth/v3/tenant_access_token/internal`, {
@@ -19,7 +26,7 @@ export async function getTenantToken(): Promise<string> {
       app_secret: process.env.LARK_APP_SECRET,
     }),
   });
-  const d = (await res.json()) as any;
+  const d = (await res.json()) as TenantTokenResponse;
   if (d.code !== 0 || !d.tenant_access_token) {
     throw new Error(`lark auth failed: code=${d.code} msg=${d.msg}`);
   }
@@ -32,7 +39,7 @@ export async function getTenantToken(): Promise<string> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export interface LarkResponse<T = any> {
+export interface LarkResponse<T = unknown> {
   code: number;
   msg: string;
   data: T;
@@ -45,7 +52,7 @@ function retryDelay(res: Response, attempt: number): number {
 }
 
 /** Authenticated request with bounded retries and token refresh. */
-export async function larkFetch<T = any>(
+export async function larkFetch<T = unknown>(
   path: string,
   method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
   body?: unknown,

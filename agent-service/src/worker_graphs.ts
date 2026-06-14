@@ -5,7 +5,7 @@ import { buildTheMindFlow, CANONICAL_GRAPH_ID, LEGACY_GRAPH_ALIAS } from "./grap
  * Canonical: wf_01_the_mind_flow ("The Mind Flow"). Legacy alias resolves to
  * the SAME graph — one workflow, two names during migration.
  */
-export const GRAPH_FACTORIES: Record<string, () => Promise<any>> = {
+export const GRAPH_FACTORIES: Record<string, typeof buildTheMindFlow> = {
   [CANONICAL_GRAPH_ID]: buildTheMindFlow,
   [LEGACY_GRAPH_ALIAS]: buildTheMindFlow,
 };
