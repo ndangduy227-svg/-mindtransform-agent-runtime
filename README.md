@@ -99,3 +99,8 @@ src/                  Next.js Control Plane
 agent-service/        LangGraph engine, worker và adapters
 supabase/migrations/  Database schema và integrity migrations
 ```
+
+## Bàn giao chuyển máy
+
+Trạng thái GitHub, credential boundary, cách dựng lại máy và run đang chờ duyệt
+được ghi tại [`MACHINE_TRANSFER.md`](MACHINE_TRANSFER.md).
